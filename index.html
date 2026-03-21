@@ -1,0 +1,1838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>CodeBreaker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =============================================
+   DESIGN TOKENS
+   ============================================= */
+:root {
+  --color-1: #E63946;
+  --color-2: #F4D03F;
+  --color-3: #2E86AB;
+  --color-4: #2ECC71;
+  --color-5: #E67E22;
+  --color-6: #9B59B6;
+
+  --feedback-black: #1a1a1a;
+  --feedback-white: #f0f0f0;
+  --feedback-empty: #3a3a3a;
+
+  --bg-app: #0f0d0b;
+  --bg-board: #181310;
+  --bg-row-active: #2a2018;
+  --bg-row-completed: #1c1610;
+  --bg-row-empty: #141009;
+  --bg-controls: #0f0d0b;
+
+  --slot-empty-fill: #241c15;
+  --slot-empty-border: #3a2e24;
+  --slot-selected-ring: #c8a96e;
+
+  --font-display: 'Cinzel', serif;
+  --font-ui: 'Outfit', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+
+  --text-primary: #f0ebe4;
+  --text-secondary: #8a7f78;
+  --text-disabled: #4a4540;
+
+  --color-accent: #c8a96e;
+  --color-submit: #c8a96e;
+  --color-submit-disabled: #2a2520;
+
+  --row-gap: 7px;
+  --slot-gap: 10px;
+  --board-padding: 16px;
+  --controls-height: 128px;
+
+  --radius-peg: 50%;
+  --radius-row: 10px;
+  --radius-button: 8px;
+
+  --shadow-slot-inset: inset 0 3px 6px rgba(0,0,0,0.7), inset 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-peg-filled: 0 3px 10px rgba(0,0,0,0.5), inset 0 1px 3px rgba(255,255,255,0.18);
+
+  --peg-size: 38px;
+  --peg-tap: 44px;
+  --palette-size: 44px;
+  --feedback-size: 13px;
+  --row-height: 60px;
+}
+
+[data-colorblind="deuteranopia"] {
+  --color-1: #D55E00;
+  --color-2: #F0E442;
+  --color-3: #0072B2;
+  --color-4: #009E73;
+  --color-5: #E69F00;
+  --color-6: #CC79A7;
+}
+[data-colorblind="protanopia"] {
+  --color-1: #FF8C69;
+  --color-2: #F0E442;
+  --color-3: #0072B2;
+  --color-4: #009E73;
+  --color-5: #E69F00;
+  --color-6: #CC79A7;
+}
+[data-colorblind="tritanopia"] {
+  --color-1: #D55E00;
+  --color-2: #F0E442;
+  --color-3: #56B4E9;
+  --color-4: #009E73;
+  --color-5: #E69F00;
+  --color-6: #CC79A7;
+}
+
+/* =============================================
+   RESET & BASE
+   ============================================= */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; background: var(--bg-app); }
+body {
+  min-height: 100%;
+  height: 100dvh;
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  background: var(--bg-app);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font-ui);
+  color: inherit;
+}
+button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-button);
+}
+
+/* =============================================
+   SCREEN TRANSITIONS
+   ============================================= */
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  animation: screenFadeIn 250ms ease;
+}
+@keyframes screenFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen { animation: none; }
+  * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}
+
+/* =============================================
+   SETUP SCREEN
+   ============================================= */
+.setup-screen {
+  overflow-y: auto;
+  background: var(--bg-app);
+}
+.setup-inner {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 40px 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.app-title {
+  text-align: center;
+}
+.app-title h1 {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(2rem, 8vw, 2.8rem);
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+.app-title .title-sub {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+.title-decoration {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.title-decoration span {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.settings-card {
+  background: var(--bg-board);
+  border: 1px solid rgba(200,169,110,0.12);
+  border-radius: 14px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.settings-card-title {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.setting-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.setting-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+/* Segmented Control */
+.seg-control {
+  display: flex;
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.seg-btn {
+  flex: 1;
+  padding: 8px 6px;
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 150ms ease;
+  text-align: center;
+  white-space: nowrap;
+}
+.seg-btn.active {
+  background: var(--color-accent);
+  color: #1a1208;
+  font-weight: 600;
+}
+.seg-btn:not(.active):hover { color: var(--text-primary); }
+.seg-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* Toggle */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.toggle-label-text {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+.toggle {
+  position: relative;
+  width: 44px; height: 26px;
+  flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,0.08);
+  border-radius: 13px;
+  border: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  transition: background 200ms ease;
+}
+.toggle input:checked + .toggle-track { background: var(--color-accent); }
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 18px; height: 18px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 200ms cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.toggle input:checked + .toggle-track::after { transform: translateX(18px); }
+.toggle:focus-within .toggle-track { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* Colorblind seg — 2 rows */
+.seg-control.seg-cb {
+  flex-wrap: wrap;
+}
+.seg-control.seg-cb .seg-btn { flex: 0 0 calc(50% - 2px); }
+
+.start-btn {
+  background: var(--color-accent);
+  color: #1a1208;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 16px 24px;
+  border-radius: 10px;
+  width: 100%;
+  transition: transform 100ms ease, box-shadow 100ms ease;
+  box-shadow: 0 4px 20px rgba(200,169,110,0.25);
+}
+.start-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(200,169,110,0.35); }
+.start-btn:active { transform: translateY(0); }
+
+/* =============================================
+   CODE ENTRY SCREEN (Two-Player)
+   ============================================= */
+.code-entry-screen {
+  background: #0a0c14;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+}
+.code-entry-inner {
+  width: 100%;
+  max-width: 440px;
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+.code-entry-label {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.3em;
+  color: #6b7aab;
+  text-transform: uppercase;
+}
+.code-entry-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 5vw, 1.8rem);
+  font-weight: 700;
+  color: #c8d4f0;
+  text-align: center;
+  letter-spacing: 0.06em;
+}
+.code-entry-slots {
+  display: flex;
+  gap: 14px;
+}
+.confirm-btn {
+  background: #3a4a7a;
+  color: #c8d4f0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 14px 32px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 300px;
+  transition: all 150ms ease;
+  opacity: 1;
+}
+.confirm-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.confirm-btn:not(:disabled):hover { background: #4a5a8a; }
+
+/* =============================================
+   HANDOFF SCREEN
+   ============================================= */
+.handoff-screen {
+  justify-content: center;
+  align-items: center;
+  background: #100e0a;
+}
+.handoff-inner {
+  max-width: 380px;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  text-align: center;
+}
+.handoff-icon {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: rgba(200,169,110,0.1);
+  border: 2px solid rgba(200,169,110,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px;
+}
+.handoff-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+}
+.handoff-msg {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.handoff-btn {
+  background: var(--color-accent);
+  color: #1a1208;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 15px 40px;
+  border-radius: 8px;
+  transition: all 100ms ease;
+}
+.handoff-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(200,169,110,0.3); }
+
+/* =============================================
+   GAME SCREEN
+   ============================================= */
+.game-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+.game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.game-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--text-primary);
+}
+.attempt-counter {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-accent);
+  letter-spacing: 0.08em;
+}
+
+/* Help Tooltip */
+.game-title-wrap {
+  display: flex;
+  align-items: center;
+}
+.help-btn {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(200,169,110,0.15);
+  border: 1px solid rgba(200,169,110,0.35);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  margin-left: 8px;
+  flex-shrink: 0;
+  transition: background 150ms ease;
+  line-height: 1;
+}
+.help-btn:hover { background: rgba(200,169,110,0.28); }
+.help-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 50%; }
+
+.tooltip-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 499;
+}
+.tooltip-overlay.open { display: block; }
+
+.tooltip-panel {
+  display: none;
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 400px);
+  max-height: 82dvh;
+  overflow-y: auto;
+  background: #1c1610;
+  border: 1px solid rgba(200,169,110,0.25);
+  border-radius: 14px;
+  padding: 22px 20px 20px;
+  z-index: 500;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.75);
+  animation: tooltipIn 200ms ease;
+}
+.tooltip-panel.open { display: block; }
+@keyframes tooltipIn {
+  from { opacity: 0; transform: translate(-50%, -47%) scale(0.96); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.tooltip-close {
+  position: absolute;
+  top: 14px; right: 16px;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  background: none; border: none;
+}
+.tooltip-close:hover { color: var(--text-primary); }
+.tooltip-close:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+.tooltip-panel h2 {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  padding-right: 24px;
+}
+.tooltip-panel h3 {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  margin: 16px 0 6px;
+}
+.tooltip-panel p {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 4px;
+}
+.tooltip-panel ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.tooltip-panel ul li {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding-left: 14px;
+  position: relative;
+}
+.tooltip-panel ul li::before {
+  content: '–';
+  position: absolute; left: 0;
+  color: var(--color-accent);
+}
+.tooltip-panel ol {
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+.tooltip-panel ol li {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.tooltip-panel strong { color: var(--text-primary); font-weight: 600; }
+.tooltip-fb-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0;
+}
+.tooltip-fb-table td {
+  padding: 7px 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  vertical-align: middle;
+  line-height: 1.5;
+}
+.tooltip-fb-table td:first-child { width: 30px; text-align: center; }
+.tooltip-fb-table tr:last-child td { border-bottom: none; }
+.fb-demo {
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: middle;
+}
+.fb-demo.black { background: #1a1a1a; border: 2px solid #c8a96e; box-shadow: 0 0 4px rgba(200,169,110,0.35); }
+.fb-demo.white { background: #f0f0f0; border: 1.5px solid #888; }
+.fb-demo.empty { background: transparent; border: 1.5px solid rgba(255,255,255,0.15); }
+.tooltip-callout {
+  background: rgba(200,169,110,0.07);
+  border-left: 2px solid var(--color-accent);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+  margin: 10px 0 4px;
+  font-size: 0.79rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.tooltip-footer {
+  margin-top: 16px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.tooltip-divider {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin: 14px 0 0;
+}
+
+/* Secret Code Panel */
+.secret-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px 8px;
+  flex-shrink: 0;
+}
+.secret-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  min-width: 60px;
+  text-align: right;
+}
+.secret-slots {
+  display: flex;
+  gap: 8px;
+}
+.secret-slot-wrap {
+  position: relative;
+  width: var(--peg-tap);
+  height: var(--peg-tap);
+  display: flex; align-items: center; justify-content: center;
+}
+.secret-slot-mask {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2;
+}
+.secret-mask-circle {
+  width: var(--peg-size); height: var(--peg-size);
+  border-radius: 50%;
+  background: #2a2520;
+  border: 2px solid #3a3028;
+  box-shadow: var(--shadow-slot-inset);
+}
+.secret-slot-mask.reveal-win {
+  animation: maskSlideUp 400ms ease-in-out forwards;
+}
+.secret-slot-mask.reveal-loss {
+  animation: maskFadeOut 800ms ease-in forwards;
+}
+@keyframes maskSlideUp {
+  to { transform: translateY(-100%); opacity: 0; }
+}
+@keyframes maskFadeOut {
+  to { opacity: 0; }
+}
+
+/* Board */
+.board-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--board-padding);
+  padding-bottom: calc(var(--controls-height) + 16px);
+  scroll-behavior: smooth;
+}
+.board {
+  max-width: 420px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap);
+}
+
+/* Guess Row */
+.guess-row {
+  display: flex;
+  align-items: center;
+  height: var(--row-height);
+  border-radius: var(--radius-row);
+  padding: 0 10px;
+  gap: 8px;
+  transition: background 200ms ease;
+  position: relative;
+}
+.guess-row.state-completed {
+  background: var(--bg-row-completed);
+  opacity: 1;
+}
+.guess-row.state-active {
+  background: var(--bg-row-active);
+  border: 1px solid rgba(200,169,110,0.2);
+  box-shadow: 0 0 0 1px rgba(200,169,110,0.06), 0 4px 20px rgba(0,0,0,0.3);
+}
+.guess-row.state-empty {
+  background: var(--bg-row-empty);
+  opacity: 0.38;
+}
+.row-number {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.row-slots {
+  display: flex;
+  gap: var(--slot-gap);
+  flex: 1;
+  justify-content: center;
+}
+
+/* Peg Slot */
+.peg-slot-wrap {
+  width: var(--peg-tap);
+  height: var(--peg-tap);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  cursor: pointer;
+}
+.peg-slot-wrap.locked { pointer-events: none; }
+.peg-visual {
+  width: var(--peg-size); height: var(--peg-size);
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  transition: transform 200ms cubic-bezier(0.34,1.56,0.64,1);
+}
+.peg-visual.state-empty {
+  background: var(--slot-empty-fill);
+  border: 1.5px solid var(--slot-empty-border);
+  box-shadow: var(--shadow-slot-inset);
+}
+.peg-visual.state-filled,
+.peg-visual.state-locked-filled {
+  box-shadow: var(--shadow-peg-filled);
+}
+.peg-visual.placing {
+  animation: pegPlace 200ms cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes pegPlace {
+  0% { transform: scale(0.6); }
+  70% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.peg-visual.locking {
+  animation: pegLock 300ms ease-in-out;
+}
+@keyframes pegLock {
+  0% { opacity: 1; }
+  40% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+/* Selection ring */
+.peg-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2.5px solid var(--slot-selected-ring);
+  pointer-events: none;
+  animation: ringPulse 1.4s ease-in-out infinite;
+}
+@keyframes ringPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.04); }
+}
+
+/* Pattern overlays */
+.peg-pattern {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.22;
+}
+/* Pattern 1: Horizontal stripes */
+.pattern-1 {
+  background: repeating-linear-gradient(
+    0deg, rgba(0,0,0,0.8) 0px, rgba(0,0,0,0.8) 2px, transparent 2px, transparent 5px
+  );
+}
+/* Pattern 2: Vertical stripes */
+.pattern-2 {
+  background: repeating-linear-gradient(
+    90deg, rgba(0,0,0,0.8) 0px, rgba(0,0,0,0.8) 2px, transparent 2px, transparent 5px
+  );
+}
+/* Pattern 3: Diagonal stripes */
+.pattern-3 {
+  background: repeating-linear-gradient(
+    45deg, rgba(0,0,0,0.8) 0px, rgba(0,0,0,0.8) 2px, transparent 2px, transparent 6px
+  );
+}
+/* Pattern 4: Dot grid */
+.pattern-4 {
+  background-image: radial-gradient(rgba(0,0,0,0.9) 1.5px, transparent 1.5px);
+  background-size: 5px 5px;
+}
+/* Pattern 5: Crosshatch */
+.pattern-5 {
+  background:
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.8) 0px, rgba(0,0,0,0.8) 1.5px, transparent 1.5px, transparent 5px),
+    repeating-linear-gradient(-45deg, rgba(0,0,0,0.8) 0px, rgba(0,0,0,0.8) 1.5px, transparent 1.5px, transparent 5px);
+}
+/* Pattern 6: ring (subtle inner ring) */
+.pattern-6 {
+  background: transparent;
+  border: 3px solid rgba(255,255,255,0.3);
+  box-shadow: inset 0 0 0 3px rgba(0,0,0,0.2);
+  opacity: 0.4;
+}
+
+/* Gloss overlay on filled pegs */
+.peg-gloss {
+  position: absolute;
+  top: 4px; left: 6px;
+  width: 55%; height: 40%;
+  border-radius: 50% 50% 40% 40% / 60% 60% 40% 40%;
+  background: linear-gradient(160deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 100%);
+  pointer-events: none;
+}
+
+/* Feedback Panel */
+.feedback-panel {
+  width: 36px;
+  flex-shrink: 0;
+}
+.feedback-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.fb-peg {
+  width: var(--feedback-size);
+  height: var(--feedback-size);
+  border-radius: 50%;
+}
+.fb-peg.fb-black {
+  background: #1a1a1a;
+  border: 2px solid #c8a96e;
+  box-shadow: 0 0 4px rgba(200,169,110,0.35), inset 0 1px 2px rgba(255,255,255,0.08);
+}
+.fb-peg.fb-white {
+  background: var(--feedback-white);
+  border: 1.5px solid #888;
+}
+.fb-peg.fb-empty {
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,0.1);
+}
+.fb-peg.animating {
+  animation: fbReveal 150ms ease-out both;
+}
+@keyframes fbReveal {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* =============================================
+   BOTTOM CONTROLS
+   ============================================= */
+.bottom-controls {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--controls-height);
+  background: var(--bg-controls);
+  border-top: 1px solid rgba(255,255,255,0.07);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  z-index: 100;
+}
+.palette-row {
+  display: flex;
+  gap: 10px;
+}
+.palette-peg-wrap {
+  width: var(--peg-tap);
+  height: var(--peg-tap);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+.palette-peg-wrap.unavailable {
+  opacity: 0.28;
+  pointer-events: none;
+}
+.palette-peg-visual {
+  width: var(--palette-size);
+  height: var(--palette-size);
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-peg-filled);
+  transition: transform 120ms ease;
+}
+.palette-peg-wrap:not(.unavailable):hover .palette-peg-visual {
+  transform: scale(1.1);
+}
+.palette-peg-wrap:not(.unavailable):active .palette-peg-visual {
+  transform: scale(0.94);
+}
+
+.action-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+}
+.clear-btn {
+  flex: 0 0 80px;
+  padding: 9px 0;
+  border-radius: var(--radius-button);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  transition: all 120ms ease;
+}
+.clear-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+.submit-btn {
+  flex: 1;
+  padding: 9px 0;
+  border-radius: var(--radius-button);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  transition: all 120ms ease;
+  background: var(--color-submit);
+  color: #1a1208;
+  box-shadow: 0 2px 12px rgba(200,169,110,0.2);
+}
+.submit-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(200,169,110,0.3); }
+.submit-btn:disabled {
+  background: var(--color-submit-disabled);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* =============================================
+   END STATE OVERLAY
+   ============================================= */
+.end-overlay {
+  max-width: 420px;
+  margin: 12px auto 8px;
+  padding: 20px 16px;
+  background: linear-gradient(135deg, rgba(42,32,24,0.95), rgba(30,22,16,0.95));
+  border: 1px solid rgba(200,169,110,0.25);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  animation: overlayIn 300ms ease-out;
+}
+@keyframes overlayIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.end-result {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-accent);
+}
+.end-result.lost { color: var(--text-secondary); }
+.end-new-btn {
+  background: var(--color-accent);
+  color: #1a1208;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 12px 32px;
+  border-radius: var(--radius-button);
+  transition: all 100ms ease;
+}
+.end-new-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(200,169,110,0.3); }
+
+/* Confetti */
+.confetti-container {
+  position: fixed; inset: 0; pointer-events: none; z-index: 200; overflow: hidden;
+}
+.confetti-piece {
+  position: absolute;
+  top: -12px;
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  animation: confettiFall 1200ms ease-in forwards;
+}
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+/* Code-entry flip animation */
+.flip-out {
+  animation: flipOut 120ms ease-in forwards;
+}
+@keyframes flipOut {
+  to { transform: rotateY(90deg); opacity: 0; }
+}
+
+/* =============================================
+   RESPONSIVE
+   ============================================= */
+@media (min-width: 480px) {
+  :root {
+    --peg-size: 40px;
+    --palette-size: 46px;
+    --feedback-size: 14px;
+    --row-height: 62px;
+  }
+}
+@media (max-width: 360px) {
+  :root {
+    --peg-size: 32px;
+    --palette-size: 38px;
+    --slot-gap: 6px;
+    --row-height: 52px;
+  }
+  .palette-row { gap: 6px; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// =============================================
+// DATA MODELS & CONSTANTS
+// =============================================
+const COLOR_NAMES = { 1:'Red', 2:'Yellow', 3:'Blue', 4:'Green', 5:'Orange', 6:'Purple' };
+const COLOR_IDS = [1,2,3,4,5,6];
+
+const DEFAULT_SETTINGS = {
+  gameMode: 'single',
+  allowDuplicates: false,
+  maxAttempts: 8,
+  showAttemptCounter: true,
+  colorblindMode: 'off'
+};
+
+// =============================================
+// GAME LOGIC (pure functions)
+// =============================================
+function generateCode(allowDuplicates) {
+  const colors = [1,2,3,4,5,6];
+  const result = [];
+  if (allowDuplicates) {
+    for (let i = 0; i < 4; i++) result.push(colors[Math.floor(Math.random() * 6)]);
+  } else {
+    const pool = [...colors];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    result.push(...pool.slice(0, 4));
+  }
+  return result;
+}
+
+function getFeedback(secret, guess) {
+  const secretUsed = [false,false,false,false];
+  const guessUsed  = [false,false,false,false];
+  let black = 0;
+  for (let i = 0; i < 4; i++) {
+    if (guess[i] === secret[i]) { black++; secretUsed[i] = true; guessUsed[i] = true; }
+  }
+  let white = 0;
+  for (let i = 0; i < 4; i++) {
+    if (guessUsed[i]) continue;
+    for (let j = 0; j < 4; j++) {
+      if (secretUsed[j]) continue;
+      if (guess[i] === secret[j]) { white++; secretUsed[j] = true; break; }
+    }
+  }
+  return { black, white };
+}
+
+function isRowComplete(slots) { return slots.every(s => s !== null); }
+
+function getAvailableColors(slots, allowDuplicates) {
+  if (allowDuplicates) return COLOR_IDS;
+  const used = slots.filter(s => s !== null);
+  return COLOR_IDS.filter(c => !used.includes(c));
+}
+
+// =============================================
+// SETTINGS PERSISTENCE
+// =============================================
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem('codebreaker_settings');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    // gameMode does not persist
+    delete parsed.gameMode;
+    return parsed;
+  } catch { return {}; }
+}
+
+function saveSettings(settings) {
+  try {
+    localStorage.setItem('codebreaker_settings', JSON.stringify(settings));
+  } catch {}
+}
+
+// =============================================
+// COLORBLIND ATTRIBUTE
+// =============================================
+function applyColorblindMode(mode) {
+  const el = document.documentElement;
+  if (mode === 'off') el.removeAttribute('data-colorblind');
+  else el.setAttribute('data-colorblind', mode);
+}
+
+// =============================================
+// STATE MANAGEMENT
+// =============================================
+function createInitialState() {
+  const saved = loadSettings();
+  const settings = { ...DEFAULT_SETTINGS, ...saved };
+  return {
+    status: 'setup',
+    settings,
+    secretCode: null,
+    completedRows: [],
+    activeRow: { slots: [null,null,null,null], selectedSlotIndex: null },
+    attemptNumber: 1
+  };
+}
+
+let state = createInitialState();
+applyColorblindMode(state.settings.colorblindMode);
+
+function setState(newState) {
+  state = newState;
+  render();
+}
+
+function dispatch(action) {
+  const s = state;
+  switch (action.type) {
+    case 'UPDATE_SETTINGS': {
+      const newSettings = { ...s.settings, ...action.payload };
+      saveSettings(newSettings);
+      applyColorblindMode(newSettings.colorblindMode);
+      setState({ ...s, settings: newSettings });
+      break;
+    }
+    case 'START_GAME': {
+      if (s.settings.gameMode === 'single') {
+        setState({
+          ...s, status: 'in-progress',
+          secretCode: generateCode(s.settings.allowDuplicates),
+          completedRows: [],
+          activeRow: { slots: [null,null,null,null], selectedSlotIndex: 0 },
+          attemptNumber: 1
+        });
+      } else {
+        setState({
+          ...s, status: 'code-entry',
+          secretCode: null,
+          completedRows: [],
+          activeRow: { slots: [null,null,null,null], selectedSlotIndex: 0 },
+          attemptNumber: 1
+        });
+      }
+      break;
+    }
+    case 'CONFIRM_CODE': {
+      setState({ ...s, status: 'handoff',
+        secretCode: action.payload,
+        activeRow: { slots: [null,null,null,null], selectedSlotIndex: 0 }
+      });
+      break;
+    }
+    case 'START_GUESSING': {
+      setState({ ...s, status: 'in-progress' });
+      break;
+    }
+    case 'SELECT_SLOT': {
+      const ar = s.activeRow;
+      const idx = action.payload.index;
+      const newSlots = [...ar.slots];
+      if (ar.slots[idx] !== null) { newSlots[idx] = null; }
+      setState({ ...s, activeRow: { slots: newSlots, selectedSlotIndex: idx } });
+      break;
+    }
+    case 'PLACE_COLOR': {
+      const ar = s.activeRow;
+      if (ar.selectedSlotIndex === null) break;
+      const newSlots = [...ar.slots];
+      newSlots[ar.selectedSlotIndex] = action.payload.colorId;
+      // Advance to next null slot
+      let next = null;
+      for (let i = ar.selectedSlotIndex + 1; i < 4; i++) {
+        if (newSlots[i] === null) { next = i; break; }
+      }
+      if (next === null) {
+        for (let i = 0; i < ar.selectedSlotIndex; i++) {
+          if (newSlots[i] === null) { next = i; break; }
+        }
+      }
+      setState({ ...s, activeRow: { slots: newSlots, selectedSlotIndex: next } });
+      // Trigger place animation
+      setTimeout(() => {
+        const el = document.querySelector(`.active-row .peg-slot-wrap[data-idx="${ar.selectedSlotIndex}"] .peg-visual`);
+        if (el) { el.classList.remove('placing'); void el.offsetWidth; el.classList.add('placing'); }
+      }, 0);
+      break;
+    }
+    case 'CLEAR_SLOT': {
+      const newSlots = [...s.activeRow.slots];
+      newSlots[action.payload.index] = null;
+      setState({ ...s, activeRow: { ...s.activeRow, slots: newSlots, selectedSlotIndex: action.payload.index } });
+      break;
+    }
+    case 'CLEAR_ROW': {
+      setState({ ...s, activeRow: { slots: [null,null,null,null], selectedSlotIndex: 0 } });
+      break;
+    }
+    case 'SUBMIT_GUESS': {
+      if (!isRowComplete(s.activeRow.slots)) break;
+      const guess = [...s.activeRow.slots];
+      const feedback = getFeedback(s.secretCode, guess);
+      const newRow = { guess, feedback };
+      const newCompleted = [...s.completedRows, newRow];
+
+      if (feedback.black === 4) {
+        setState({ ...s, status: 'won', completedRows: newCompleted });
+        triggerWinAnimation();
+        setTimeout(() => revealSecretCode('win'), 300);
+        break;
+      }
+      if (newCompleted.length >= s.settings.maxAttempts) {
+        setState({ ...s, status: 'lost', completedRows: newCompleted });
+        setTimeout(() => revealSecretCode('loss'), 400);
+        break;
+      }
+      setState({
+        ...s, status: 'in-progress',
+        completedRows: newCompleted,
+        activeRow: { slots: [null,null,null,null], selectedSlotIndex: 0 },
+        attemptNumber: s.attemptNumber + 1
+      });
+      // Scroll to active row
+      setTimeout(() => {
+        const activeEl = document.querySelector('.guess-row.state-active');
+        if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 80);
+      break;
+    }
+    case 'NEW_GAME': {
+      setState({
+        ...s, status: 'setup',
+        secretCode: null,
+        completedRows: [],
+        activeRow: { slots: [null,null,null,null], selectedSlotIndex: null },
+        attemptNumber: 1
+      });
+      break;
+    }
+  }
+}
+
+// =============================================
+// ANIMATIONS
+// =============================================
+function revealSecretCode(type) {
+  const masks = document.querySelectorAll('.secret-slot-mask');
+  masks.forEach((m, i) => {
+    setTimeout(() => {
+      m.classList.add(type === 'win' ? 'reveal-win' : 'reveal-loss');
+    }, i * 80);
+  });
+}
+
+function triggerWinAnimation() {
+  const container = document.createElement('div');
+  container.className = 'confetti-container';
+  const colors = ['#E63946','#F4D03F','#2E86AB','#2ECC71','#E67E22','#9B59B6','#c8a96e'];
+  for (let i = 0; i < 60; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = Math.random() * 100 + 'vw';
+    piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+    piece.style.width = (5 + Math.random() * 8) + 'px';
+    piece.style.height = (5 + Math.random() * 8) + 'px';
+    piece.style.animationDelay = Math.random() * 600 + 'ms';
+    piece.style.animationDuration = (800 + Math.random() * 600) + 'ms';
+    container.appendChild(piece);
+  }
+  document.body.appendChild(container);
+  setTimeout(() => container.remove(), 2000);
+}
+
+function triggerFeedbackAnimation(rowEl) {
+  const fbPegs = rowEl.querySelectorAll('.fb-peg');
+  fbPegs.forEach((peg, i) => {
+    peg.style.animationDelay = (i * 80) + 'ms';
+    peg.classList.add('animating');
+  });
+}
+
+// =============================================
+// HTML BUILDERS
+// =============================================
+function pegColorStyle(colorId) {
+  return `background: var(--color-${colorId});`;
+}
+
+function buildPegVisual(colorId, stateClass, patternClass, addGloss) {
+  const gloss = addGloss ? `<div class="peg-gloss"></div>` : '';
+  const pattern = patternClass ? `<div class="peg-pattern ${patternClass}"></div>` : '';
+  const style = colorId ? `style="${pegColorStyle(colorId)}"` : '';
+  return `<div class="peg-visual ${stateClass}" ${style}>${pattern}${gloss}</div>`;
+}
+
+function getPatternClass(colorId) {
+  return colorId ? `pattern-${colorId}` : '';
+}
+
+function buildPegSlot(colorId, slotState, idx, isActive) {
+  const filled = colorId !== null;
+  const patternClass = filled ? getPatternClass(colorId) : '';
+  const stateClass = filled ? 'state-filled' : 'state-empty';
+  const lockedClass = (!isActive) ? 'locked' : '';
+  const ring = (isActive && slotState === 'selected') ? `<div class="peg-ring"></div>` : '';
+  const ariaLabel = filled
+    ? (isActive ? `Slot ${idx+1}, ${COLOR_NAMES[colorId]}. Tap to clear.` : `Slot ${idx+1}, ${COLOR_NAMES[colorId]}`)
+    : `Slot ${idx+1}, empty. Tap to select.`;
+  const pegHtml = buildPegVisual(colorId, stateClass, patternClass, filled);
+  return `<div class="peg-slot-wrap ${lockedClass}" data-idx="${idx}" role="button" tabindex="${isActive ? 0 : -1}" aria-label="${ariaLabel}" ${isActive ? 'onclick="handleSlotTap('+idx+')"' : ''}>${ring}${pegHtml}</div>`;
+}
+
+function buildFeedbackPanel(feedback, animating) {
+  if (!feedback) {
+    return `<div class="feedback-panel"><div class="feedback-grid">${[0,1,2,3].map(() => `<div class="fb-peg fb-empty"></div>`).join('')}</div></div>`;
+  }
+  const pegs = [];
+  for (let i = 0; i < feedback.black; i++) pegs.push('black');
+  for (let i = 0; i < feedback.white; i++) pegs.push('white');
+  while (pegs.length < 4) pegs.push('empty');
+  const ariaLabel = `${feedback.black} black pegs, ${feedback.white} white pegs`;
+  const html = pegs.map((p, i) => {
+    const delay = animating ? `style="animation-delay:${i*80}ms"` : '';
+    return `<div class="fb-peg fb-${p} ${animating ? 'animating' : ''}" ${delay}></div>`;
+  }).join('');
+  return `<div class="feedback-panel" aria-label="${ariaLabel}" role="img"><div class="feedback-grid">${html}</div></div>`;
+}
+
+function buildGuessRow(rowIndex, rowState, slots, feedback, selectedSlotIndex) {
+  const isActive = rowState === 'active';
+  const activeClass = isActive ? 'active-row' : '';
+  const slotsHtml = slots.map((colorId, i) => {
+    const slotState = isActive && selectedSlotIndex === i ? 'selected' : 'normal';
+    return buildPegSlot(colorId, slotState, i, isActive);
+  }).join('');
+  const fbHtml = buildFeedbackPanel(feedback, false);
+  return `<div class="guess-row state-${rowState} ${activeClass}" data-row="${rowIndex}">
+    <div class="row-number">${rowIndex + 1}</div>
+    <div class="row-slots">${slotsHtml}</div>
+    ${fbHtml}
+  </div>`;
+}
+
+// =============================================
+// SCREEN RENDERERS
+// =============================================
+function renderSetupScreen(settings) {
+  const gm = settings.gameMode;
+  const ma = settings.maxAttempts;
+  const cb = settings.colorblindMode;
+  const dots = COLOR_IDS.map(id => `<span style="background:var(--color-${id})"></span>`).join('');
+  return `<div class="screen setup-screen">
+    <div class="setup-inner">
+      <div class="app-title">
+        <h1>CodeBreaker</h1>
+        <div class="title-sub">Crack the Secret Code</div>
+        <div class="title-decoration">${dots}</div>
+      </div>
+      <div class="settings-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div class="settings-card-title" style="margin-bottom:0">Game Settings</div>
+          <button class="help-btn" onclick="openTooltip()" aria-label="How to play" style="margin-left:0;flex-shrink:0;">?</button>
+        </div>
+        ${buildTooltipHTML()}
+
+        <div class="setting-row">
+          <div class="setting-label">Game Mode</div>
+          <div class="seg-control">
+            <button class="seg-btn ${gm==='single'?'active':''}" onclick="updateSetting('gameMode','single')">Single Player</button>
+            <button class="seg-btn ${gm==='two-player'?'active':''}" onclick="updateSetting('gameMode','two-player')">Two Player</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="toggle-row">
+            <span class="toggle-label-text">Allow Duplicates</span>
+            <label class="toggle" aria-label="Allow Duplicates">
+              <input type="checkbox" ${settings.allowDuplicates?'checked':''} onchange="updateSetting('allowDuplicates',this.checked)">
+              <div class="toggle-track"></div>
+            </label>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">Max Attempts</div>
+          <div class="seg-control">
+            <button class="seg-btn ${ma===8?'active':''}" onclick="updateSetting('maxAttempts',8)">8</button>
+            <button class="seg-btn ${ma===10?'active':''}" onclick="updateSetting('maxAttempts',10)">10</button>
+            <button class="seg-btn ${ma===12?'active':''}" onclick="updateSetting('maxAttempts',12)">12</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="toggle-row">
+            <span class="toggle-label-text">Show Attempt Counter</span>
+            <label class="toggle" aria-label="Show Attempt Counter">
+              <input type="checkbox" ${settings.showAttemptCounter?'checked':''} onchange="updateSetting('showAttemptCounter',this.checked)">
+              <div class="toggle-track"></div>
+            </label>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">Colorblind Mode</div>
+          <div class="seg-control seg-cb">
+            <button class="seg-btn ${cb==='off'?'active':''}" onclick="updateSetting('colorblindMode','off')">Off</button>
+            <button class="seg-btn ${cb==='deuteranopia'?'active':''}" onclick="updateSetting('colorblindMode','deuteranopia')">Deuteranopia</button>
+            <button class="seg-btn ${cb==='protanopia'?'active':''}" onclick="updateSetting('colorblindMode','protanopia')">Protanopia</button>
+            <button class="seg-btn ${cb==='tritanopia'?'active':''}" onclick="updateSetting('colorblindMode','tritanopia')">Tritanopia</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="start-btn" onclick="dispatch({type:'START_GAME'})">Start Game</button>
+    </div>
+  </div>`;
+}
+
+function renderCodeEntryScreen(settings) {
+  // Local state for code entry (stored on window to survive re-renders)
+  if (!window._ceSlots) window._ceSlots = [null,null,null,null];
+  if (!window._ceSelected) window._ceSelected = 0;
+  const slots = window._ceSlots;
+  const selIdx = window._ceSelected;
+  const available = getAvailableColors(slots, settings.allowDuplicates);
+  const complete = isRowComplete(slots);
+
+  const slotsHtml = slots.map((cid, i) => {
+    const sel = selIdx === i;
+    const filled = cid !== null;
+    const patternClass = filled ? getPatternClass(cid) : '';
+    const stateClass = filled ? 'state-filled' : 'state-empty';
+    const style = filled ? `style="${pegColorStyle(cid)}"` : '';
+    const ring = sel ? `<div class="peg-ring"></div>` : '';
+    const pattern = patternClass ? `<div class="peg-pattern ${patternClass}"></div>` : '';
+    const gloss = filled ? `<div class="peg-gloss"></div>` : '';
+    return `<div class="peg-slot-wrap" data-idx="${i}" role="button" tabindex="0" aria-label="Slot ${i+1}"
+      style="--tap:${i}" onclick="ceSlotTap(${i})">
+      ${ring}
+      <div class="peg-visual ${stateClass}" ${style}>${pattern}${gloss}</div>
+    </div>`;
+  }).join('');
+
+  const paletteHtml = COLOR_IDS.map(cid => {
+    const avail = available.includes(cid);
+    return `<div class="palette-peg-wrap ${avail?'':'unavailable'}" onclick="cePaletteTap(${cid})" aria-label="${avail?'Place':''}${COLOR_NAMES[cid]}" role="button" tabindex="${avail?0:-1}">
+      <div class="palette-peg-visual" style="${pegColorStyle(cid)}">
+        <div class="peg-pattern ${getPatternClass(cid)}"></div>
+        <div class="peg-gloss"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="screen code-entry-screen">
+    <div class="code-entry-inner">
+      <div class="code-entry-label">Two Player Mode</div>
+      <div class="code-entry-title">Set Your Secret Code</div>
+      <div class="code-entry-slots">${slotsHtml}</div>
+      <div class="palette-row">${paletteHtml}</div>
+      <div style="display:flex;gap:10px;width:100%;max-width:300px;">
+        <button class="clear-btn" style="flex:0 0 72px" onclick="ceClear()">Clear</button>
+        <button class="confirm-btn" style="flex:1" ${complete?'':'disabled'} onclick="ceConfirm()" aria-label="${complete?'Confirm code':'Confirm code, fill all slots first'}">Confirm Code</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderHandoffScreen() {
+  return `<div class="screen handoff-screen">
+    <div class="handoff-inner">
+      <div class="handoff-icon">🔒</div>
+      <div class="handoff-title">Code Set</div>
+      <div class="handoff-msg">Pass the device to the other player.</div>
+      <button class="handoff-btn" onclick="dispatch({type:'START_GUESSING'})">Start Guessing</button>
+    </div>
+  </div>`;
+}
+
+function renderGameScreen(s) {
+  const { status, settings, secretCode, completedRows, activeRow, attemptNumber } = s;
+  const isPlaying = status === 'in-progress';
+  const revealed = status === 'won' || status === 'lost';
+
+  // Secret code panel
+  const secretSlots = (secretCode || [null,null,null,null]).map((cid, i) => {
+    const filled = cid !== null;
+    const patternClass = filled ? getPatternClass(cid) : '';
+    const style = filled ? `style="${pegColorStyle(cid)}"` : '';
+    const pattern = patternClass ? `<div class="peg-pattern ${patternClass}"></div>` : '';
+    const gloss = filled ? `<div class="peg-gloss"></div>` : '';
+    const maskHtml = !revealed ? `<div class="secret-slot-mask"><div class="secret-mask-circle"></div></div>` : '';
+    return `<div class="secret-slot-wrap">
+      ${maskHtml}
+      <div class="peg-visual state-filled" ${style} style="${filled ? pegColorStyle(cid) : 'background:var(--slot-empty-fill);border:1.5px solid var(--slot-empty-border);box-shadow:var(--shadow-slot-inset);'}">
+        ${pattern}${gloss}
+      </div>
+    </div>`;
+  }).join('');
+  const secretAriaLabel = revealed && secretCode
+    ? `Secret code: ${secretCode.map(c => COLOR_NAMES[c]).join(', ')}`
+    : 'Secret code, hidden';
+  const secretPanel = `<div class="secret-panel" aria-label="${secretAriaLabel}">
+    <div class="secret-label">Secret</div>
+    <div class="secret-slots">${secretSlots}</div>
+  </div>`;
+
+  // Build rows
+  const rows = [];
+  for (let i = 0; i < settings.maxAttempts; i++) {
+    if (i < completedRows.length) {
+      const r = completedRows[i];
+      rows.push(buildGuessRow(i, 'completed', r.guess, r.feedback, null));
+    } else if (i === completedRows.length && isPlaying) {
+      rows.push(buildGuessRow(i, 'active', activeRow.slots, null, activeRow.selectedSlotIndex));
+    } else {
+      rows.push(buildGuessRow(i, 'empty', [null,null,null,null], null, null));
+    }
+  }
+
+  // End overlay
+  let endOverlay = '';
+  if (status === 'won' || status === 'lost') {
+    const isWin = status === 'won';
+    let msg;
+    if (settings.gameMode === 'single') {
+      msg = isWin ? `Solved in ${completedRows.length} attempt${completedRows.length===1?'':'s'}!` : 'The code was not cracked.';
+    } else {
+      msg = isWin ? 'The codebreaker wins!' : 'The codemaker wins!';
+    }
+    endOverlay = `<div class="end-overlay" style="margin-bottom:calc(var(--controls-height) + 16px)">
+      <div class="end-result ${isWin?'won':'lost'}">${msg}</div>
+      <button class="end-new-btn" onclick="dispatch({type:'NEW_GAME'})">New Game</button>
+    </div>`;
+  }
+
+  // Controls
+  let controls = '';
+  if (isPlaying) {
+    const available = getAvailableColors(activeRow.slots, settings.allowDuplicates);
+    const paletteHtml = COLOR_IDS.map(cid => {
+      const avail = available.includes(cid);
+      return `<div class="palette-peg-wrap ${avail?'':'unavailable'}" onclick="dispatch({type:'PLACE_COLOR',payload:{colorId:${cid}}})"
+        role="button" tabindex="${avail?0:-1}"
+        aria-label="${avail?'Place '+COLOR_NAMES[cid]:'Place '+COLOR_NAMES[cid]+', already used'}">
+        <div class="palette-peg-visual" style="${pegColorStyle(cid)}">
+          <div class="peg-pattern ${getPatternClass(cid)}"></div>
+          <div class="peg-gloss"></div>
+        </div>
+      </div>`;
+    }).join('');
+    const submitReady = isRowComplete(activeRow.slots);
+    controls = `<div class="bottom-controls">
+      <div class="palette-row">${paletteHtml}</div>
+      <div class="action-row">
+        <button class="clear-btn" onclick="dispatch({type:'CLEAR_ROW'})">Clear</button>
+        <button class="submit-btn" ${submitReady?'':'disabled'} onclick="dispatch({type:'SUBMIT_GUESS'})"
+          aria-label="${submitReady?'Submit guess':'Submit guess, fill all slots first'}">Submit</button>
+      </div>
+    </div>`;
+  }
+
+  const counterHtml = (isPlaying && settings.showAttemptCounter)
+    ? `<div class="attempt-counter">Attempt ${attemptNumber} of ${settings.maxAttempts}</div>`
+    : '<div></div>';
+
+  const tooltipHtml = buildTooltipHTML();
+
+  return `<div class="screen game-screen">
+    ${tooltipHtml}
+    <div class="game-header">
+      <div class="game-title-wrap">
+        <div class="game-title">CodeBreaker</div>
+        <button class="help-btn" onclick="openTooltip()" aria-label="How to play">?</button>
+      </div>
+      ${counterHtml}
+    </div>
+    ${secretPanel}
+    <div class="board-area" id="boardArea">
+      <div class="board">
+        ${rows.join('')}
+        ${endOverlay}
+      </div>
+    </div>
+    ${controls}
+  </div>`;
+}
+
+// =============================================
+// RENDER
+// =============================================
+function render() {
+  const s = state;
+  let html = '';
+  switch (s.status) {
+    case 'setup':       html = renderSetupScreen(s.settings); break;
+    case 'code-entry':  html = renderCodeEntryScreen(s.settings); break;
+    case 'handoff':     html = renderHandoffScreen(); break;
+    default:            html = renderGameScreen(s); break;
+  }
+  document.getElementById('app').innerHTML = html;
+
+  // After render, trigger feedback animations on the last completed row
+  if (s.status === 'in-progress' && s.completedRows.length > 0) {
+    const lastIdx = s.completedRows.length - 1;
+    const lastRow = document.querySelector(`.guess-row[data-row="${lastIdx}"]`);
+    if (lastRow && !lastRow.dataset.fbAnimated) {
+      lastRow.dataset.fbAnimated = '1';
+      triggerFeedbackAnimation(lastRow);
+    }
+  }
+  if ((s.status === 'won' || s.status === 'lost') && s.completedRows.length > 0) {
+    const lastIdx = s.completedRows.length - 1;
+    const lastRow = document.querySelector(`.guess-row[data-row="${lastIdx}"]`);
+    if (lastRow) triggerFeedbackAnimation(lastRow);
+  }
+}
+
+// =============================================
+// EVENT HANDLERS
+// =============================================
+function updateSetting(key, value) {
+  dispatch({ type: 'UPDATE_SETTINGS', payload: { [key]: value } });
+}
+
+function handleSlotTap(idx) {
+  dispatch({ type: 'SELECT_SLOT', payload: { index: idx } });
+}
+
+// Code entry local state
+function ceSlotTap(idx) {
+  const slots = window._ceSlots;
+  if (slots[idx] !== null) {
+    window._ceSlots = [...slots]; window._ceSlots[idx] = null;
+    window._ceSelected = idx;
+  } else {
+    window._ceSelected = idx;
+  }
+  render();
+}
+
+function cePaletteTap(colorId) {
+  const selIdx = window._ceSelected;
+  if (selIdx === null) return;
+  const slots = [...window._ceSlots];
+  slots[selIdx] = colorId;
+  // Advance
+  let next = null;
+  for (let i = selIdx + 1; i < 4; i++) { if (slots[i] === null) { next = i; break; } }
+  if (next === null) { for (let i = 0; i < selIdx; i++) { if (slots[i] === null) { next = i; break; } } }
+  window._ceSlots = slots;
+  window._ceSelected = next;
+  render();
+}
+
+function ceClear() {
+  window._ceSlots = [null,null,null,null];
+  window._ceSelected = 0;
+  render();
+}
+
+function ceConfirm() {
+  if (!isRowComplete(window._ceSlots)) return;
+  const code = [...window._ceSlots];
+  window._ceSlots = [null,null,null,null];
+  window._ceSelected = 0;
+  dispatch({ type: 'CONFIRM_CODE', payload: code });
+}
+
+// Keyboard support
+document.addEventListener('keydown', (e) => {
+  if (state.status !== 'in-progress') return;
+  const { activeRow, settings } = state;
+  const selIdx = activeRow.selectedSlotIndex;
+
+  if (e.key === 'Enter') { if (isRowComplete(activeRow.slots)) dispatch({ type: 'SUBMIT_GUESS' }); return; }
+  if (e.key === 'Backspace' || e.key === 'Delete') {
+    if (selIdx !== null && activeRow.slots[selIdx] !== null) {
+      dispatch({ type: 'CLEAR_SLOT', payload: { index: selIdx } });
+    }
+    return;
+  }
+  // Arrow navigation
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    const dir = e.key === 'ArrowRight' ? 1 : -1;
+    const cur = selIdx !== null ? selIdx : 0;
+    const next = Math.max(0, Math.min(3, cur + dir));
+    dispatch({ type: 'SELECT_SLOT', payload: { index: next } });
+    e.preventDefault();
+    return;
+  }
+  // Number keys 1-6 to place colors
+  const num = parseInt(e.key);
+  if (num >= 1 && num <= 6) {
+    const available = getAvailableColors(activeRow.slots, settings.allowDuplicates);
+    if (available.includes(num) && selIdx !== null) {
+      dispatch({ type: 'PLACE_COLOR', payload: { colorId: num } });
+    }
+  }
+});
+
+// =============================================
+// TOOLTIP
+// =============================================
+function buildTooltipHTML() {
+  return `
+    <div class="tooltip-overlay" id="tooltipOverlay" onclick="closeTooltip()"></div>
+    <div class="tooltip-panel" id="tooltipPanel" role="dialog" aria-modal="true" aria-label="How to Play">
+      <button class="tooltip-close" onclick="closeTooltip()" aria-label="Close">✕</button>
+      <h2>How to Play CodeBreaker</h2>
+
+      <h3>The Goal</h3>
+      <p>Crack the secret code — a hidden sequence of 4 colored pegs — before you run out of guesses.</p>
+
+      <h3>The Setup</h3>
+      <ul>
+        <li>There are <strong>6 possible colors</strong> to choose from</li>
+        <li>The secret code uses <strong>4 of them</strong>, in a specific order</li>
+        <li>By default colors <strong>do not repeat</strong>, but you can enable duplicates in settings</li>
+        <li>You have <strong>8 attempts</strong> by default (10 or 12 available in settings)</li>
+      </ul>
+
+      <h3>Taking a Turn</h3>
+      <ol>
+        <li><strong>Pick a color</strong> from the palette at the bottom — it auto-fills the next empty slot</li>
+        <li><strong>Tap a filled slot</strong> in the active row to clear it and reselect that position</li>
+        <li>Fill all 4 slots, then tap the <strong>Submit button</strong> to lock in your guess</li>
+      </ol>
+
+      <h3>Reading the Feedback</h3>
+      <p>After each guess, you'll see up to 4 small feedback pegs on the right side of your row:</p>
+      <table class="tooltip-fb-table">
+        <tr>
+          <td><span class="fb-demo black"></span></td>
+          <td><strong>Dark with gold ring</strong> — correct color AND correct position</td>
+        </tr>
+        <tr>
+          <td><span class="fb-demo white"></span></td>
+          <td><strong>White</strong> — correct color, but wrong position</td>
+        </tr>
+        <tr>
+          <td><span class="fb-demo empty"></span></td>
+          <td><em>Empty</em> — that color does not appear in the code at all</td>
+        </tr>
+      </table>
+      <div class="tooltip-callout">
+        <strong>Important:</strong> The feedback pegs don't tell you <em>which</em> slot they refer to — just the overall counts. You have to figure out what goes where!
+      </div>
+
+      <h3>Winning &amp; Losing</h3>
+      <ul>
+        <li>Get <strong>4 gold-ringed pegs</strong> in one guess and you've cracked the code 🎉</li>
+        <li>Use all your attempts without cracking it and the code is revealed 😔</li>
+      </ul>
+
+      <h3>Strategy Tips</h3>
+      <ul>
+        <li><strong>Start broad</strong> — use 4 different colors on your first guess to maximize information</li>
+        <li><strong>Track what you know</strong> — if a color gets zero feedback pegs, eliminate it entirely</li>
+        <li><strong>Use process of elimination</strong> — once you know a color is correct, experiment with its position</li>
+        <li><strong>Don't ignore white pegs</strong> — a color being "right color, wrong spot" is still very useful information</li>
+      </ul>
+
+      <hr class="tooltip-divider">
+      <div class="tooltip-footer">Good luck! 🎯</div>
+    </div>`;
+}
+
+function openTooltip() {
+  document.getElementById('tooltipOverlay').classList.add('open');
+  document.getElementById('tooltipPanel').classList.add('open');
+}
+function closeTooltip() {
+  const o = document.getElementById('tooltipOverlay');
+  const p = document.getElementById('tooltipPanel');
+  if (o) o.classList.remove('open');
+  if (p) p.classList.remove('open');
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeTooltip();
+});
+
+// =============================================
+// INIT
+// =============================================
+render();
+</script>
+</body>
+</html>

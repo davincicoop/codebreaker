@@ -287,6 +287,40 @@ button:focus-visible {
 .toggle input:checked + .toggle-track::after { transform: translateX(18px); }
 .toggle:focus-within .toggle-track { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
+/* Date Picker */
+.date-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.date-picker-row input[type="date"] {
+  flex: 1;
+  background: var(--bg-board);
+  color: var(--text-primary);
+  border: 1px solid var(--text-secondary);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  min-height: 44px;
+  color-scheme: dark;
+}
+.date-picker-row input[type="date"]:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.date-picker-row input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7) sepia(0.5) saturate(1.5) hue-rotate(10deg);
+  cursor: pointer;
+}
+.puzzle-number-badge {
+  font-weight: 600;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 /* Colorblind seg — 2 rows */
 .seg-control.seg-cb {
   flex-wrap: wrap;
@@ -1189,6 +1223,22 @@ const DEFAULT_SETTINGS = {
   colorblindMode: 'off'
 };
 
+// Helper: today's local date as YYYY-MM-DD
+function getTodayDateString() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+}
+
+// Helper: puzzle number for a given YYYY-MM-DD string
+function puzzleNumberForDateString(dateStr) {
+  const parts = dateStr.split('-');
+  const target = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  const launch = new Date(2026, 2, 21); // March 21, 2026
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const daysDiff = Math.floor((target - launch) / msPerDay);
+  return Math.max(1, daysDiff + 1);
+}
+
 // =============================================
 // GAME LOGIC (pure functions)
 // =============================================
@@ -1244,13 +1294,18 @@ function loadSettings() {
     const parsed = JSON.parse(raw);
     // gameMode does not persist
     delete parsed.gameMode;
+    // dailyPuzzleDate does not persist — always reset to today
+    delete parsed.dailyPuzzleDate;
     return parsed;
   } catch { return {}; }
 }
 
 function saveSettings(settings) {
   try {
-    localStorage.setItem('codebreaker_settings', JSON.stringify(settings));
+    const toSave = { ...settings };
+    delete toSave.gameMode; // transient
+    delete toSave.dailyPuzzleDate; // transient — always reset to today
+    localStorage.setItem('codebreaker_settings', JSON.stringify(toSave));
   } catch {}
 }
 
@@ -1301,8 +1356,11 @@ function dispatch(action) {
     }
     case 'START_GAME': {
       if (s.settings.gameMode === 'daily') {
-        // Daily challenge mode
-        const dailyPuzzle = DailyPuzzleSystem.getTodaysPuzzle(s.settings.dailyGameMode);
+        // Daily challenge mode — use selected date (defaults to today)
+        const dateStr = s.settings.dailyPuzzleDate || getTodayDateString();
+        const parts = dateStr.split('-');
+        const selectedDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const dailyPuzzle = DailyPuzzleSystem.getPuzzleForDate(selectedDate, s.settings.dailyGameMode);
         setState({
           ...s, status: 'in-progress',
           secretCode: dailyPuzzle.code,
@@ -1422,7 +1480,8 @@ function dispatch(action) {
         secretCode: null,
         completedRows: [],
         activeRow: { slots: [null,null,null,null], selectedSlotIndex: null },
-        attemptNumber: 1
+        attemptNumber: 1,
+        settings: { ...s.settings, dailyPuzzleDate: getTodayDateString() }
       });
       break;
     }
@@ -1562,6 +1621,18 @@ function renderSetupScreen(settings) {
         </div>
 
         ${settings.gameMode === 'daily' ? `
+        <div class="setting-row">
+          <div class="setting-label">Puzzle Date</div>
+          <div class="date-picker-row">
+            <input type="date" id="daily-date-picker"
+              value="${settings.dailyPuzzleDate || getTodayDateString()}"
+              min="2026-03-21"
+              max="${getTodayDateString()}"
+              aria-label="Select daily puzzle date"
+              onchange="updateSetting('dailyPuzzleDate', this.value)">
+            <span class="puzzle-number-badge" aria-live="polite">Daily #${puzzleNumberForDateString(settings.dailyPuzzleDate || getTodayDateString())}</span>
+          </div>
+        </div>
         <div class="setting-row">
           <div class="setting-label">Daily Mode</div>
           <div class="seg-control">

@@ -1041,6 +1041,113 @@ button:focus-visible {
 }
 .end-new-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(200,169,110,0.3); }
 
+/* Share Button */
+.share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(200,169,110,0.25);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 10px 24px;
+  border-radius: var(--radius-button);
+  transition: all 150ms ease;
+  width: 100%;
+  max-width: 240px;
+}
+.share-btn:hover {
+  background: rgba(200,169,110,0.12);
+  border-color: rgba(200,169,110,0.4);
+}
+.share-btn:active { transform: scale(0.97); }
+.share-btn .share-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* Share Toast */
+.share-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(30,24,16,0.95);
+  border: 1px solid rgba(200,169,110,0.3);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  padding: 10px 20px;
+  border-radius: 8px;
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  animation: toastIn 2s ease forwards;
+}
+@keyframes toastIn {
+  0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  12% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+}
+
+/* Share Manual Copy Modal */
+.share-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 499;
+  display: flex; align-items: center; justify-content: center;
+}
+.share-modal {
+  background: #1c1610;
+  border: 1px solid rgba(200,169,110,0.25);
+  border-radius: 14px;
+  padding: 20px;
+  width: min(90vw, 360px);
+  display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.75);
+}
+.share-modal-title {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: var(--color-accent);
+  text-transform: uppercase;
+}
+.share-modal textarea {
+  width: 100%;
+  min-height: 180px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 12px;
+  resize: none;
+  line-height: 1.5;
+}
+.share-modal-close {
+  align-self: flex-end;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 20px;
+  border-radius: var(--radius-button);
+  transition: all 120ms ease;
+}
+.share-modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+
 /* Confetti */
 .confetti-container {
   position: fixed; inset: 0; pointer-events: none; z-index: 200; overflow: hidden;
@@ -1528,6 +1635,111 @@ function triggerFeedbackAnimation(rowEl) {
 }
 
 // =============================================
+// SHAREABLE RESULT CARD
+// =============================================
+// Pure function: generates share text from game state.
+// Intentionally receives only feedback data (no guess colors, no secret code).
+// See: spec-codebreaker-shareable §6
+function generateShareText(completedRows, status, puzzleNumber, dailyGameMode, maxAttempts) {
+  // Header
+  const modeLabel = dailyGameMode === 'dup' ? 'Duplicates' : 'No Duplicates';
+  const header = `CodeBreaker 🔐 #${puzzleNumber} ${modeLabel}`;
+
+  // Outcome line
+  let outcome;
+  if (status === 'lost') {
+    outcome = 'Code unbroken 💀';
+  } else {
+    const n = completedRows.length;
+    let emoji;
+    if (n === 1) emoji = '🤯';
+    else if (n <= 5) emoji = '🎉';
+    else if (n <= 8) emoji = '😅';
+    else emoji = '😬';
+    outcome = `Cracked it in ${n}/${maxAttempts} ${emoji}`;
+  }
+
+  // Indicator grid — only reads feedback, never guess colors
+  const grid = completedRows.map(row => {
+    const { black, white } = row.feedback;
+    const misses = 4 - black - white;
+    const indicators = [];
+    for (let i = 0; i < black; i++) indicators.push('⚫');
+    for (let i = 0; i < white; i++) indicators.push('⚪');
+    for (let i = 0; i < misses; i++) indicators.push('⭕');
+    return indicators.join(' ');
+  }).join('\n');
+
+  // Footer
+  const footer = 'Your turn 👉 breakthecode.app';
+
+  return `${header}\n${outcome}\n\n${grid}\n\n${footer}`;
+}
+
+async function handleShare() {
+  const s = state;
+  const shareText = generateShareText(
+    s.completedRows,
+    s.status,
+    s.puzzleNumber,
+    s.settings.dailyGameMode,
+    s.settings.maxAttempts
+  );
+
+  // Try Web Share API first (mobile + supported desktop)
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'CodeBreaker', text: shareText });
+      return; // Success — OS share sheet handled it
+    } catch (err) {
+      // User cancelled or share failed — fall through to clipboard
+      if (err.name === 'AbortError') return; // User cancelled, do nothing
+    }
+  }
+
+  // Fallback: clipboard copy
+  try {
+    await navigator.clipboard.writeText(shareText);
+    showShareToast('✅ Result copied to clipboard');
+    return;
+  } catch (err) {
+    // Clipboard failed — show manual copy modal
+  }
+
+  // Double-fallback: manual copy modal
+  showShareModal(shareText);
+}
+
+function showShareToast(message) {
+  // Remove any existing toast
+  const existing = document.querySelector('.share-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'share-toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2200);
+}
+
+function showShareModal(text) {
+  const modal = document.createElement('div');
+  modal.className = 'share-modal-overlay';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `<div class="share-modal">
+    <div class="share-modal-title">Copy and paste this anywhere:</div>
+    <textarea readonly onclick="this.select()">${text}</textarea>
+    <button class="share-modal-close" onclick="this.closest('.share-modal-overlay').remove()">Close</button>
+  </div>`;
+  document.body.appendChild(modal);
+  // Auto-select the text
+  setTimeout(() => {
+    const ta = modal.querySelector('textarea');
+    if (ta) { ta.focus(); ta.select(); }
+  }, 50);
+}
+
+// =============================================
 // HTML BUILDERS
 // =============================================
 function pegColorStyle(colorId) {
@@ -1803,6 +2015,7 @@ function renderGameScreen(s) {
     endOverlay = `<div class="end-overlay" style="margin-bottom:calc(var(--controls-height) + 16px)">
       <div class="end-result ${isWin?'won':'lost'}">${msg}</div>
       <button class="end-new-btn" onclick="dispatch({type:'NEW_GAME'})">New Game</button>
+      ${settings.gameMode === 'daily' ? `<button class="share-btn" onclick="handleShare()" aria-label="Share my result"><span class="share-icon">↑</span> ${typeof navigator !== 'undefined' && navigator.share ? 'Share My Result' : 'Copy My Result'}</button>` : ''}
     </div>`;
   }
 

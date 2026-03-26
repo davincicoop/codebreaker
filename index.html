@@ -1695,10 +1695,14 @@ function triggerFeedbackAnimation(rowEl) {
 // Pure function: generates share text from game state.
 // Intentionally receives only feedback data (no guess colors, no secret code).
 // See: spec-codebreaker-shareable §6
-function generateShareText(completedRows, status, puzzleNumber, dailyGameMode, maxAttempts) {
-  // Header
+function generateShareText(completedRows, status, puzzleNumber, dailyGameMode, maxAttempts, dailyPuzzleDate) {
+  // Header — includes formatted date with · separators
+  // See: spec-codebreaker-share-date
   const modeLabel = dailyGameMode === 'dup' ? 'Duplicates' : 'No Duplicates';
-  const header = `CodeBreaker 🔐 #${puzzleNumber} ${modeLabel}`;
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateParts = dailyPuzzleDate.split('-');
+  const dateLabel = `${monthNames[Number(dateParts[1]) - 1]} ${Number(dateParts[2])}`;
+  const header = `CodeBreaker 🔐 #${puzzleNumber} · ${dateLabel} · ${modeLabel}`;
 
   // Outcome line
   let outcome;
@@ -1738,7 +1742,8 @@ async function handleShare() {
     s.status,
     s.puzzleNumber,
     s.settings.dailyGameMode,
-    s.settings.maxAttempts
+    s.settings.maxAttempts,
+    s.settings.dailyPuzzleDate || getTodayDateString()
   );
 
   // Try Web Share API first (mobile + supported desktop)

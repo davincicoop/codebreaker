@@ -2170,7 +2170,11 @@ function render() {
     case 'handoff':     html = renderHandoffScreen(); break;
     default:            html = renderGameScreen(s); break;
   }
+  // Preserve scroll position across full re-render to prevent mobile scroll jump
+  // (full innerHTML replacement resets scroll to top; save/restore keeps the user's position)
+  const savedScrollY = window.scrollY;
   document.getElementById('app').innerHTML = html;
+  window.scrollTo(0, savedScrollY);
 
   // After render, trigger feedback animations on the last completed row
   if (s.status === 'in-progress' && s.completedRows.length > 0) {

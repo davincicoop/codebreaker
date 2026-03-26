@@ -327,6 +327,48 @@ button:focus-visible {
 }
 .seg-control.seg-cb .seg-btn { flex: 0 0 calc(50% - 2px); }
 
+/* Advanced Settings Accordion */
+.advanced-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 0 0;
+  margin: 0;
+  border: none;
+  border-top: 1px solid rgba(200,169,110,0.12);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  min-height: 44px;
+}
+.advanced-accordion-header:hover { color: var(--text-primary); }
+.advanced-accordion-header:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+.advanced-accordion-chevron {
+  color: var(--color-accent);
+  font-size: 0.85rem;
+  transition: transform 250ms ease;
+  flex-shrink: 0;
+}
+.advanced-accordion-header[aria-expanded="true"] .advanced-accordion-chevron {
+  transform: rotate(90deg);
+}
+.advanced-accordion-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 250ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.advanced-accordion-body.open {
+  max-height: 500px;
+}
+
 .start-btn {
   background: var(--color-accent);
   color: #1a1208;
@@ -1594,6 +1636,7 @@ function dispatch(action) {
       break;
     }
     case 'NEW_GAME': {
+      window._advancedOpen = false; // Reset accordion to collapsed
       setState({
         ...s, status: 'setup',
         secretCode: null,
@@ -1878,6 +1921,14 @@ function renderSetupScreen(settings) {
         </div>
         ` : ''}
 
+        <button class="advanced-accordion-header" id="advanced-settings-header"
+          aria-expanded="${window._advancedOpen ? 'true' : 'false'}"
+          aria-controls="advanced-settings-body"
+          onclick="toggleAdvancedSettings()">
+          <span>Advanced Settings</span>
+          <span class="advanced-accordion-chevron">▸</span>
+        </button>
+        <div class="advanced-accordion-body ${window._advancedOpen ? 'open' : ''}" id="advanced-settings-body">
         <div class="setting-row">
           <div class="setting-label">Max Attempts</div>
           <div class="seg-control">
@@ -1905,6 +1956,7 @@ function renderSetupScreen(settings) {
             <button class="seg-btn ${cb==='protanopia'?'active':''}" onclick="updateSetting('colorblindMode','protanopia')">Protanopia</button>
             <button class="seg-btn ${cb==='tritanopia'?'active':''}" onclick="updateSetting('colorblindMode','tritanopia')">Tritanopia</button>
           </div>
+        </div>
         </div>
       </div>
 
@@ -2280,6 +2332,19 @@ function closeTooltip() {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeTooltip();
 });
+
+// =============================================
+// ADVANCED SETTINGS ACCORDION
+// =============================================
+function toggleAdvancedSettings() {
+  window._advancedOpen = !window._advancedOpen;
+  const body = document.getElementById('advanced-settings-body');
+  const header = document.getElementById('advanced-settings-header');
+  if (body && header) {
+    body.classList.toggle('open', window._advancedOpen);
+    header.setAttribute('aria-expanded', String(window._advancedOpen));
+  }
+}
 
 // =============================================
 // INIT

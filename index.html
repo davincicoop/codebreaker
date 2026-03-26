@@ -1388,6 +1388,15 @@ function getFeedback(secret, guess) {
 
 function isRowComplete(slots) { return slots.every(s => s !== null); }
 
+// Returns the effective allow-duplicates flag for the current game mode.
+// Daily mode uses dailyGameMode ('dup'/'nodup'); other modes use allowDuplicates.
+function effectiveAllowDuplicates(settings) {
+  if (settings.gameMode === 'daily') {
+    return settings.dailyGameMode === 'dup';
+  }
+  return settings.allowDuplicates;
+}
+
 function getAvailableColors(slots, allowDuplicates) {
   if (allowDuplicates) return COLOR_IDS;
   const used = slots.filter(s => s !== null);
@@ -1857,6 +1866,7 @@ function renderSetupScreen(settings) {
         </div>
         ` : ''}
 
+        ${settings.gameMode !== 'daily' ? `
         <div class="setting-row">
           <div class="toggle-row">
             <span class="toggle-label-text">Allow Duplicates</span>
@@ -1866,6 +1876,7 @@ function renderSetupScreen(settings) {
             </label>
           </div>
         </div>
+        ` : ''}
 
         <div class="setting-row">
           <div class="setting-label">Max Attempts</div>
@@ -1908,7 +1919,7 @@ function renderCodeEntryScreen(settings) {
   if (!window._ceSelected) window._ceSelected = 0;
   const slots = window._ceSlots;
   const selIdx = window._ceSelected;
-  const available = getAvailableColors(slots, settings.allowDuplicates);
+  const available = getAvailableColors(slots, effectiveAllowDuplicates(settings));
   const complete = isRowComplete(slots);
 
   const slotsHtml = slots.map((cid, i) => {
@@ -2025,7 +2036,7 @@ function renderGameScreen(s) {
   // Controls
   let controls = '';
   if (isPlaying) {
-    const available = getAvailableColors(activeRow.slots, settings.allowDuplicates);
+    const available = getAvailableColors(activeRow.slots, effectiveAllowDuplicates(settings));
     const paletteHtml = COLOR_IDS.map(cid => {
       const avail = available.includes(cid);
       return `<div class="palette-peg-wrap ${avail?'':'unavailable'}" onclick="dispatch({type:'PLACE_COLOR',payload:{colorId:${cid}}})"
@@ -2182,7 +2193,7 @@ document.addEventListener('keydown', (e) => {
   // Number keys 1-6 to place colors
   const num = parseInt(e.key);
   if (num >= 1 && num <= 6) {
-    const available = getAvailableColors(activeRow.slots, settings.allowDuplicates);
+    const available = getAvailableColors(activeRow.slots, effectiveAllowDuplicates(settings));
     if (available.includes(num) && selIdx !== null) {
       dispatch({ type: 'PLACE_COLOR', payload: { colorId: num } });
     }

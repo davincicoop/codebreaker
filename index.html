@@ -1650,28 +1650,25 @@ function dispatch(action) {
         activeRow: { slots: [null,null,null,null], selectedSlotIndex: 0 },
         attemptNumber: s.attemptNumber + 1
       });
-      // After submit, only scroll if the active row is floating (below the visible
-      // area of .board-area). If it's fully visible, do nothing — the new active row
-      // appears naturally below the just-completed row with no movement.
-      // If floating, scroll so the just-completed row is visible above the sticky active row.
+      // After submit, scroll only if the just-completed row is hidden behind the
+      // floating active row. If everything is visible, do nothing.
+      // We detect overlap by comparing the bottom of the last completed row against
+      // the top of the sticky active row — if the completed row's bottom is below
+      // the active row's top, it's obscured and we need to scroll it into view.
       setTimeout(() => {
         const boardArea = document.querySelector('.board-area');
+        const lastCompletedEl = boardArea && boardArea.querySelector(`.guess-row[data-row="${newCompleted.length - 1}"]`);
         const activeEl = document.querySelector('.guess-row.state-active');
-        if (!boardArea || !activeEl) return;
+        if (!boardArea || !lastCompletedEl || !activeEl) return;
 
-        // Get the active row's natural position relative to .board-area
-        const boardRect = boardArea.getBoundingClientRect();
+        const lastRect = lastCompletedEl.getBoundingClientRect();
         const activeRect = activeEl.getBoundingClientRect();
 
-        // If the active row's natural bottom is within the visible board area, do nothing
-        const activeBottom = activeRect.bottom;
-        const boardBottom = boardRect.bottom;
-        if (activeBottom <= boardBottom) return;
+        // If the last completed row is fully above the active row, it's visible — do nothing
+        if (lastRect.bottom <= activeRect.top) return;
 
-        // Active row is floating — scroll so the just-completed row is visible just above it.
-        // Find the last completed row and scroll it to the bottom of the visible board area.
-        const lastCompletedEl = boardArea.querySelector(`.guess-row[data-row="${newCompleted.length - 1}"]`);
-        if (lastCompletedEl) lastCompletedEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        // Last completed row is obscured — scroll it into view just above the active row
+        lastCompletedEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }, 80);
       break;
     }

@@ -1518,6 +1518,7 @@ function createInitialState() {
 }
 
 let state = createInitialState();
+let lastAction = null;
 applyColorblindMode(state.settings.colorblindMode);
 
 function setState(newState) {
@@ -1526,6 +1527,7 @@ function setState(newState) {
 }
 
 function dispatch(action) {
+  lastAction = action.type;
   const s = state;
   switch (action.type) {
     case 'UPDATE_SETTINGS': {
@@ -2169,6 +2171,40 @@ function renderGameScreen(s) {
 // =============================================
 function render() {
   const s = state;
+
+  // For peg placement actions during an active game, do a targeted update of only
+  // the active row and controls — never touching .board-area or its scrollTop.
+  // This is the definitive fix for scroll jumping on color peg taps.
+  if (
+    s.status === 'in-progress' &&
+    (lastAction === 'PLACE_COLOR' || lastAction === 'SELECT_SLOT' || lastAction === 'CLEAR_SLOT' || lastAction === 'CLEAR_ROW')
+  ) {
+    // Re-render just the active row in place
+    const activeRowEl = document.querySelector('.guess-row.state-active');
+    if (activeRowEl) {
+      const rowIndex = parseInt(activeRowEl.dataset.row);
+      activeRowEl.outerHTML = buildGuessRow(rowIndex, 'active', s.activeRow.slots, null, s.activeRow.selectedSlotIndex);
+    }
+    // Update submit button enabled state
+    const submitBtn = document.querySelector('.submit-btn');
+    if (submitBtn) {
+      const ready = isRowComplete(s.activeRow.slots);
+      submitBtn.disabled = !ready;
+      submitBtn.setAttribute('aria-label', ready ? 'Submit guess' : 'Submit guess, fill all slots first');
+    }
+    // Update palette peg availability
+    const available = getAvailableColors(s.activeRow.slots, effectiveAllowDuplicates(s.settings));
+    document.querySelectorAll('.palette-peg-wrap').forEach((el, i) => {
+      const cid = COLOR_IDS[i];
+      const avail = available.includes(cid);
+      el.classList.toggle('unavailable', !avail);
+      el.setAttribute('tabindex', avail ? '0' : '-1');
+      el.setAttribute('aria-label', avail ? 'Place ' + COLOR_NAMES[cid] : 'Place ' + COLOR_NAMES[cid] + ', already used');
+    });
+    lastAction = null;
+    return;
+  }
+
   let html = '';
   switch (s.status) {
     case 'setup':       html = renderSetupScreen(s.settings); break;
@@ -2176,19 +2212,12 @@ function render() {
     case 'handoff':     html = renderHandoffScreen(); break;
     default:            html = renderGameScreen(s); break;
   }
-  // Preserve scroll position across full re-render to prevent scroll jump on color tap.
-  // The scrollable container is .board-area (overflow-y: auto), not the window —
-  // so we save/restore its scrollTop, not window.scrollY which is always 0.
+  // For full re-renders (submit, new game, etc.) preserve board-area scroll position.
   const boardArea = document.querySelector('.board-area');
   const savedScroll = boardArea ? boardArea.scrollTop : 0;
   document.getElementById('app').innerHTML = html;
-  // Defer scroll restore by one frame so the browser completes layout before we set
-  // scrollTop — otherwise a large scrollTop value gets clamped to 0 on a freshly
-  // injected element whose scroll height hasn't been calculated yet.
-  requestAnimationFrame(() => {
-    const newBoardArea = document.querySelector('.board-area');
-    if (newBoardArea) newBoardArea.scrollTop = savedScroll;
-  });
+  const newBoardArea = document.querySelector('.board-area');
+  if (newBoardArea) newBoardArea.scrollTop = savedScroll;
 
   // After render, trigger feedback animations on the last completed row
   if (s.status === 'in-progress' && s.completedRows.length > 0) {

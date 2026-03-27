@@ -1648,13 +1648,10 @@ function dispatch(action) {
         activeRow: { slots: [null,null,null,null], selectedSlotIndex: 0 },
         attemptNumber: s.attemptNumber + 1
       });
-      // Scroll so the just-completed row is visible immediately above the sticky active row.
-      // The active row is sticky so it's always visible — we just need the board to show
-      // the last completed row above it. scrollIntoView with block:'end' on the completed
-      // row achieves this without pulling the scroll position up to center the active row.
+      // Scroll to active row
       setTimeout(() => {
-        const lastCompleted = document.querySelector(`.guess-row[data-row="${newCompleted.length - 1}"]`);
-        if (lastCompleted) lastCompleted.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        const activeEl = document.querySelector('.guess-row.state-active');
+        if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 80);
       break;
     }

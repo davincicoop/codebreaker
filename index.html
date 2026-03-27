@@ -1664,7 +1664,13 @@ function dispatch(action) {
         const lastRect = lastCompletedEl.getBoundingClientRect();
         const activeRect = activeEl.getBoundingClientRect();
 
-        console.log('[submit scroll] lastRect.bottom:', lastRect.bottom, 'activeRect.top:', activeRect.top, 'overlap:', lastRect.bottom > activeRect.top);
+        // Temp diagnostic — show values on screen for mobile testing
+        const diagMsg = `last.bottom:${Math.round(lastRect.bottom)} active.top:${Math.round(activeRect.top)} overlap:${lastRect.bottom > activeRect.top}`;
+        const diagEl = document.createElement('div');
+        diagEl.style.cssText = 'position:fixed;top:60px;left:0;right:0;background:rgba(0,0,0,0.85);color:#fff;font-size:13px;padding:8px 12px;z-index:9999;text-align:center;';
+        diagEl.textContent = diagMsg;
+        document.body.appendChild(diagEl);
+        setTimeout(() => diagEl.remove(), 4000);
 
         // If the last completed row is fully above the active row, it's visible — do nothing
         if (lastRect.bottom <= activeRect.top) return;

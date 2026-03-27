@@ -2182,8 +2182,13 @@ function render() {
   const boardArea = document.querySelector('.board-area');
   const savedScroll = boardArea ? boardArea.scrollTop : 0;
   document.getElementById('app').innerHTML = html;
-  const newBoardArea = document.querySelector('.board-area');
-  if (newBoardArea) newBoardArea.scrollTop = savedScroll;
+  // Defer scroll restore by one frame so the browser completes layout before we set
+  // scrollTop — otherwise a large scrollTop value gets clamped to 0 on a freshly
+  // injected element whose scroll height hasn't been calculated yet.
+  requestAnimationFrame(() => {
+    const newBoardArea = document.querySelector('.board-area');
+    if (newBoardArea) newBoardArea.scrollTop = savedScroll;
+  });
 
   // After render, trigger feedback animations on the last completed row
   if (s.status === 'in-progress' && s.completedRows.length > 0) {

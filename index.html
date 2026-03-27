@@ -1061,25 +1061,33 @@ button:focus-visible {
 }
 
 /* =============================================
-   END STATE OVERLAY
+   END STATE — SHARED CARD STYLES
+   Used by both the modal overlay and the inline
+   fallback block below the board.
    ============================================= */
+@keyframes overlayIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Inline fallback — visible below board after modal is dismissed */
 .end-overlay {
   max-width: 420px;
   margin: 12px auto 8px;
-  padding: 20px 16px;
-  background: linear-gradient(135deg, rgba(42,32,24,0.95), rgba(30,22,16,0.95));
-  border: 1px solid rgba(200,169,110,0.25);
+  padding: 24px 20px;
+  background: linear-gradient(135deg, rgba(42,32,24,0.98), rgba(30,22,16,0.98));
+  border: 1px solid rgba(200,169,110,0.35);
   border-radius: 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   text-align: center;
   animation: overlayIn 300ms ease-out;
 }
-@keyframes overlayIn {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+.end-overlay-emoji {
+  font-size: 2.6rem;
+  line-height: 1;
 }
 .end-result {
   font-family: var(--font-display);
@@ -1102,6 +1110,183 @@ button:focus-visible {
   transition: all 100ms ease;
 }
 .end-new-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(200,169,110,0.3); }
+
+/* =============================================
+   RESULT MODAL OVERLAY
+   Fixed full-screen modal — primary result surface
+   z-index 400 (above board, below share modal 499)
+   ============================================= */
+.result-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: backdropIn 250ms ease-out;
+}
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.result-modal-card {
+  background: linear-gradient(135deg, rgba(42,32,24,0.98), rgba(30,22,16,0.98));
+  border: 1px solid rgba(200,169,110,0.35);
+  border-radius: 14px;
+  padding: 32px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  width: 100%;
+  max-width: 360px;
+  animation: overlayIn 300ms ease-out;
+  position: relative;
+}
+.result-modal-emoji {
+  font-size: 3rem;
+  line-height: 1;
+}
+.result-modal-msg {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-accent);
+}
+.result-modal-msg.lost { color: var(--text-secondary); }
+.result-modal-close-hint {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  margin-top: 4px;
+}
+
+/* =============================================
+   EMOJI BURST PARTICLES
+   Injected into body on win, self-removing
+   ============================================= */
+.emoji-burst-particle {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  font-size: 1.6rem;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 401;
+  transform-origin: center center;
+  animation: emojiBurst calc(900ms + var(--duration-offset, 0ms)) ease-out forwards;
+}
+@keyframes emojiBurst {
+  0%   { transform: translate(-50%, -50%) rotate(0deg) scale(0); opacity: 1; }
+  40%  { opacity: 1; transform: translate(
+    calc(-50% + cos(var(--angle, 0deg)) * var(--distance, 150px)),
+    calc(-50% + sin(var(--angle, 0deg)) * var(--distance, 150px))
+  ) scale(1.4); }
+  100% { transform: translate(
+    calc(-50% + cos(var(--angle, 0deg)) * var(--distance, 150px) * 1.3),
+    calc(-50% + sin(var(--angle, 0deg)) * var(--distance, 150px) * 1.3)
+  ) scale(0.8); opacity: 0; }
+}
+
+/* =============================================
+   LOGO HOME BUTTON
+   ============================================= */
+button.game-title {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  opacity: 1;
+  transition: opacity 150ms ease;
+}
+button.game-title:hover { opacity: 0.7; }
+
+/* =============================================
+   ABANDON GAME DIALOG
+   z-index 401 — above result overlay
+   ============================================= */
+.abandon-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 401;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.abandon-card {
+  background: #1c1610;
+  border: 1px solid rgba(200,169,110,0.3);
+  border-radius: 14px;
+  padding: 28px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  width: 100%;
+  max-width: 320px;
+}
+.abandon-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-accent);
+}
+.abandon-body {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.abandon-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.abandon-cancel-btn {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(200,169,110,0.25);
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 11px 8px;
+  border-radius: var(--radius-button);
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+.abandon-cancel-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+.abandon-leave-btn {
+  flex: 1;
+  background: var(--color-accent);
+  color: #1a1208;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 11px 8px;
+  border-radius: var(--radius-button);
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+.abandon-leave-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(200,169,110,0.3); }
 
 /* Share Button */
 .share-btn {
@@ -1636,12 +1821,20 @@ function dispatch(action) {
       if (feedback.black === 4) {
         setState({ ...s, status: 'won', completedRows: newCompleted });
         triggerWinAnimation();
-        setTimeout(() => revealSecretCode('win'), 300);
+        const winEmoji = getOutcomeEmoji(newCompleted.length, 'won');
+        setTimeout(() => {
+          revealSecretCode('win');
+          showResultOverlay({ ...s, status: 'won', completedRows: newCompleted });
+          triggerEmojiBurst(winEmoji);
+        }, 300);
         break;
       }
       if (newCompleted.length >= s.settings.maxAttempts) {
         setState({ ...s, status: 'lost', completedRows: newCompleted });
-        setTimeout(() => revealSecretCode('loss'), 400);
+        setTimeout(() => {
+          revealSecretCode('loss');
+          showResultOverlay({ ...s, status: 'lost', completedRows: newCompleted });
+        }, 400);
         break;
       }
       setState({
@@ -1731,6 +1924,190 @@ function triggerFeedbackAnimation(rowEl) {
 }
 
 // =============================================
+// OUTCOME EMOJI SCALE
+// Shared helper — used by result overlay and generateShareText.
+// See: spec-codebreaker-winloss-overlay §3.4
+// =============================================
+function getOutcomeEmoji(attempts, status) {
+  if (status === 'lost') return '💀';
+  if (attempts === 1) return '🤯';
+  if (attempts === 2) return '🏆';
+  if (attempts === 3) return '🔥';
+  if (attempts === 4) return '👍';
+  if (attempts === 5) return '😅';
+  if (attempts <= 8) return '😬';
+  return '😮\u200d💨';
+}
+
+// =============================================
+// RESULT MODAL OVERLAY
+// Injected into <body> on game end. Dismissed by
+// backdrop click or Escape. Inline .end-overlay
+// remains as fallback after dismissal.
+// See: spec-codebreaker-winloss-overlay §3.1–3.5
+// =============================================
+function showResultOverlay(s) {
+  const existing = document.querySelector('.result-modal-backdrop');
+  if (existing) existing.remove();
+
+  const { status, completedRows, settings } = s;
+  const isWin = status === 'won';
+  const emoji = getOutcomeEmoji(completedRows.length, status);
+
+  let msg;
+  if (settings.gameMode === 'daily') {
+    msg = isWin
+      ? `Daily #${s.puzzleNumber} solved in ${completedRows.length} attempt${completedRows.length === 1 ? '' : 's'}!`
+      : `Daily #${s.puzzleNumber} not cracked.`;
+  } else if (settings.gameMode === 'single') {
+    msg = isWin
+      ? `Solved in ${completedRows.length} attempt${completedRows.length === 1 ? '' : 's'}!`
+      : 'The code was not cracked.';
+  } else {
+    msg = isWin ? 'The codebreaker wins!' : 'The codemaker wins!';
+  }
+
+  const shareBtn = settings.gameMode === 'daily'
+    ? `<button class="share-btn" onclick="handleShare()" aria-label="Share my result">
+        <span class="share-icon">↑</span>
+        ${typeof navigator !== 'undefined' && navigator.share ? 'Share My Result' : 'Copy My Result'}
+       </button>`
+    : '';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'result-modal-backdrop';
+  backdrop.setAttribute('role', 'dialog');
+  backdrop.setAttribute('aria-modal', 'true');
+  backdrop.setAttribute('aria-label', isWin ? 'Game won' : 'Game over');
+  backdrop.innerHTML = `
+    <div class="result-modal-card" id="resultModalCard">
+      <div class="result-modal-emoji" aria-hidden="true">${emoji}</div>
+      <div class="result-modal-msg ${isWin ? 'won' : 'lost'}">${msg}</div>
+      <button class="end-new-btn" onclick="dispatch({type:'NEW_GAME'});document.querySelector('.result-modal-backdrop')?.remove();">New Game</button>
+      ${shareBtn}
+      <div class="result-modal-close-hint">Tap outside to close</div>
+    </div>`;
+
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) {
+      backdrop.remove();
+      document.removeEventListener('keydown', escHandler);
+    }
+  });
+
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      backdrop.remove();
+      document.removeEventListener('keydown', escHandler);
+      document.querySelector('button.game-title')?.focus();
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+
+  document.body.appendChild(backdrop);
+}
+
+// =============================================
+// EMOJI BURST ANIMATION
+// 14 particles radiating from viewport center on win.
+// Pure JS/CSS — no libraries.
+// See: spec-codebreaker-winloss-overlay §3.3
+// =============================================
+function triggerEmojiBurst(emoji) {
+  const count = 14;
+  for (let i = 0; i < count; i++) {
+    const angle = (360 / count) * i + (Math.random() * 20 - 10);
+    const distance = 130 + Math.random() * 90;
+    const durationOffset = Math.random() * 200;
+
+    const span = document.createElement('span');
+    span.className = 'emoji-burst-particle';
+    span.textContent = emoji;
+    span.style.setProperty('--angle', angle + 'deg');
+    span.style.setProperty('--distance', distance + 'px');
+    span.style.setProperty('--duration-offset', durationOffset + 'ms');
+    span.addEventListener('animationend', () => span.remove());
+    document.body.appendChild(span);
+  }
+}
+
+// =============================================
+// LOGO HOME NAVIGATION
+// Mid-game: shows abandon dialog.
+// Post-game (won/lost): navigates directly.
+// See: spec-codebreaker-winloss-overlay §3.6–3.8
+// =============================================
+function handleLogoNav() {
+  const s = state;
+  if (s.status === 'won' || s.status === 'lost') {
+    document.querySelector('.result-modal-backdrop')?.remove();
+    dispatch({ type: 'NEW_GAME' });
+    return;
+  }
+  if (s.status === 'in-progress') {
+    if (s.completedRows.length === 0) {
+      dispatch({ type: 'NEW_GAME' });
+      return;
+    }
+    showAbandonDialog();
+  }
+}
+
+// =============================================
+// ABANDON GAME DIALOG
+// Shown when logo is tapped mid-game with ≥1 guess.
+// Styled modal — not browser confirm().
+// See: spec-codebreaker-winloss-overlay §3.6, §3.10
+// =============================================
+function showAbandonDialog() {
+  if (document.querySelector('.abandon-backdrop')) return;
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'abandon-backdrop';
+  backdrop.setAttribute('role', 'dialog');
+  backdrop.setAttribute('aria-modal', 'true');
+  backdrop.setAttribute('aria-label', 'Abandon game?');
+  backdrop.innerHTML = `
+    <div class="abandon-card">
+      <div class="abandon-title">Abandon game?</div>
+      <div class="abandon-body">Your current progress will be lost.</div>
+      <div class="abandon-actions">
+        <button class="abandon-cancel-btn" id="abandonCancel">Keep Playing</button>
+        <button class="abandon-leave-btn" id="abandonLeave">Leave</button>
+      </div>
+    </div>`;
+
+  const close = () => {
+    backdrop.remove();
+    document.removeEventListener('keydown', escHandler);
+    document.querySelector('button.game-title')?.focus();
+  };
+
+  backdrop.querySelector('#abandonCancel').addEventListener('click', close);
+  backdrop.querySelector('#abandonLeave').addEventListener('click', () => {
+    backdrop.remove();
+    document.removeEventListener('keydown', escHandler);
+    dispatch({ type: 'NEW_GAME' });
+  });
+
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+
+  const escHandler = (e) => {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'Tab') {
+      const btns = [backdrop.querySelector('#abandonCancel'), backdrop.querySelector('#abandonLeave')];
+      const idx = btns.indexOf(document.activeElement);
+      e.preventDefault();
+      btns[(idx + (e.shiftKey ? -1 : 1) + 2) % 2].focus();
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('#abandonLeave').focus();
+}
+
+// =============================================
 // SHAREABLE RESULT CARD
 // =============================================
 // Pure function: generates share text from game state.
@@ -1745,19 +2122,11 @@ function generateShareText(completedRows, status, puzzleNumber, dailyGameMode, m
   const dateLabel = `${monthNames[Number(dateParts[1]) - 1]} ${Number(dateParts[2])}`;
   const header = `CodeBreaker 🔐 #${puzzleNumber} · ${dateLabel} · ${modeLabel}`;
 
-  // Outcome line
-  let outcome;
-  if (status === 'lost') {
-    outcome = 'Code unbroken 💀';
-  } else {
-    const n = completedRows.length;
-    let emoji;
-    if (n === 1) emoji = '🤯';
-    else if (n <= 5) emoji = '🎉';
-    else if (n <= 8) emoji = '😅';
-    else emoji = '😬';
-    outcome = `Cracked it in ${n}/${maxAttempts} ${emoji}`;
-  }
+  // Outcome line — uses shared emoji scale (spec-codebreaker-winloss-overlay §3.4)
+  const outcomeEmoji = getOutcomeEmoji(completedRows.length, status);
+  const outcome = status === 'lost'
+    ? `Code unbroken ${outcomeEmoji}`
+    : `Cracked it in ${completedRows.length}/${maxAttempts} ${outcomeEmoji}`;
 
   // Indicator grid — only reads feedback, never guess colors
   const grid = completedRows.map(row => {
@@ -2112,10 +2481,12 @@ function renderGameScreen(s) {
     }
   }
 
-  // End overlay
+  // End overlay (inline fallback — visible below board after modal is dismissed)
+  // Restyled to match result modal card. See: spec-codebreaker-winloss-overlay §3.1
   let endOverlay = '';
   if (status === 'won' || status === 'lost') {
     const isWin = status === 'won';
+    const emoji = getOutcomeEmoji(completedRows.length, status);
     let msg;
     if (settings.gameMode === 'daily') {
       msg = isWin ? `Daily #${s.puzzleNumber} solved in ${completedRows.length} attempt${completedRows.length===1?'':'s'}!` : `Daily #${s.puzzleNumber} not cracked.`;
@@ -2125,6 +2496,7 @@ function renderGameScreen(s) {
       msg = isWin ? 'The codebreaker wins!' : 'The codemaker wins!';
     }
     endOverlay = `<div class="end-overlay" style="margin-bottom:calc(var(--controls-height) + 16px)">
+      <div class="end-overlay-emoji" aria-hidden="true">${emoji}</div>
       <div class="end-result ${isWin?'won':'lost'}">${msg}</div>
       <button class="end-new-btn" onclick="dispatch({type:'NEW_GAME'})">New Game</button>
       ${settings.gameMode === 'daily' ? `<button class="share-btn" onclick="handleShare()" aria-label="Share my result"><span class="share-icon">↑</span> ${typeof navigator !== 'undefined' && navigator.share ? 'Share My Result' : 'Copy My Result'}</button>` : ''}
@@ -2169,7 +2541,7 @@ function renderGameScreen(s) {
     ${tooltipHtml}
     <div class="game-header">
       <div class="game-title-wrap">
-        <div class="game-title">CodeBreaker</div>
+        <button class="game-title" onclick="handleLogoNav()" aria-label="Return to settings">CodeBreaker</button>
         <button class="help-btn" onclick="openTooltip()" aria-label="How to play">?</button>
       </div>
       ${counterHtml}

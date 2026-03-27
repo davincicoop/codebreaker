@@ -1664,19 +1664,15 @@ function dispatch(action) {
         const lastRect = lastCompletedEl.getBoundingClientRect();
         const activeRect = activeEl.getBoundingClientRect();
 
-        // Temp diagnostic — show values on screen for mobile testing
-        const diagMsg = `last.bottom:${Math.round(lastRect.bottom)} active.top:${Math.round(activeRect.top)} overlap:${lastRect.bottom > activeRect.top}`;
-        const diagEl = document.createElement('div');
-        diagEl.style.cssText = 'position:fixed;top:60px;left:0;right:0;background:rgba(0,0,0,0.85);color:#fff;font-size:13px;padding:8px 12px;z-index:9999;text-align:center;';
-        diagEl.textContent = diagMsg;
-        document.body.appendChild(diagEl);
-        setTimeout(() => diagEl.remove(), 4000);
-
         // If the last completed row is fully above the active row, it's visible — do nothing
         if (lastRect.bottom <= activeRect.top) return;
 
-        // Last completed row is obscured — scroll it into view just above the active row
-        lastCompletedEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        // Last completed row is obscured behind the floating active row.
+        // scrollIntoView block:'end' doesn't account for the sticky active row's height,
+        // so we scroll by the exact overlap amount instead — moving the board up just
+        // enough that lastRect.bottom lands at activeRect.top with a small gap.
+        const overlap = lastRect.bottom - activeRect.top + 8;
+        boardArea.scrollBy({ top: overlap, behavior: 'smooth' });
       }, 80);
       break;
     }

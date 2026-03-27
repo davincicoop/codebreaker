@@ -1664,6 +1664,8 @@ function dispatch(action) {
         const lastRect = lastCompletedEl.getBoundingClientRect();
         const activeRect = activeEl.getBoundingClientRect();
 
+        console.log('[submit scroll] lastRect.bottom:', lastRect.bottom, 'activeRect.top:', activeRect.top, 'overlap:', lastRect.bottom > activeRect.top);
+
         // If the last completed row is fully above the active row, it's visible — do nothing
         if (lastRect.bottom <= activeRect.top) return;
 

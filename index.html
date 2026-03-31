@@ -1098,18 +1098,29 @@ button:focus-visible {
 }
 .end-result.lost { color: var(--text-secondary); }
 .end-new-btn {
-  background: var(--color-accent);
-  color: #1a1208;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.82rem;
-  letter-spacing: 0.18em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(200,169,110,0.25);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 12px 32px;
+  padding: 10px 24px;
   border-radius: var(--radius-button);
-  transition: all 100ms ease;
+  transition: all 150ms ease;
+  width: 100%;
+  max-width: 240px;
 }
-.end-new-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(200,169,110,0.3); }
+.end-new-btn:hover {
+  background: rgba(200,169,110,0.12);
+  border-color: rgba(200,169,110,0.4);
+}
+.end-new-btn:active { transform: scale(0.97); }
 
 /* =============================================
    RESULT MODAL OVERLAY
@@ -1294,24 +1305,21 @@ button.game-title:hover { opacity: 0.7; }
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(200,169,110,0.25);
-  color: var(--color-accent);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.12em;
+  background: var(--color-accent);
+  border: none;
+  color: #1a1208;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  padding: 10px 24px;
+  padding: 12px 32px;
   border-radius: var(--radius-button);
-  transition: all 150ms ease;
+  transition: all 100ms ease;
   width: 100%;
   max-width: 240px;
 }
-.share-btn:hover {
-  background: rgba(200,169,110,0.12);
-  border-color: rgba(200,169,110,0.4);
-}
+.share-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(200,169,110,0.3); }
 .share-btn:active { transform: scale(0.97); }
 .share-btn .share-icon {
   font-size: 0.9rem;
@@ -1983,8 +1991,8 @@ function showResultOverlay(s) {
     <div class="result-modal-card" id="resultModalCard">
       <div class="result-modal-emoji" aria-hidden="true">${emoji}</div>
       <div class="result-modal-msg ${isWin ? 'won' : 'lost'}">${msg}</div>
-      <button class="end-new-btn" onclick="dispatch({type:'NEW_GAME'});document.querySelector('.result-modal-backdrop')?.remove();">New Game</button>
       ${shareBtn}
+      <button class="end-new-btn" onclick="dispatch({type:'NEW_GAME'});document.querySelector('.result-modal-backdrop')?.remove();">New Game</button>
       <div class="result-modal-close-hint">Tap outside to close</div>
     </div>`;
 
@@ -2498,8 +2506,8 @@ function renderGameScreen(s) {
     endOverlay = `<div class="end-overlay" style="margin-bottom:calc(var(--controls-height) + 16px)">
       <div class="end-overlay-emoji" aria-hidden="true">${emoji}</div>
       <div class="end-result ${isWin?'won':'lost'}">${msg}</div>
-      <button class="end-new-btn" onclick="dispatch({type:'NEW_GAME'})">New Game</button>
       ${settings.gameMode === 'daily' ? `<button class="share-btn" onclick="handleShare()" aria-label="Share my result"><span class="share-icon">↑</span> ${typeof navigator !== 'undefined' && navigator.share ? 'Share My Result' : 'Copy My Result'}</button>` : ''}
+      <button class="end-new-btn" onclick="dispatch({type:'NEW_GAME'})">New Game</button>
     </div>`;
   }
 

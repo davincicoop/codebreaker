@@ -1736,6 +1736,48 @@ function dispatch(action) {
       if (s.settings.gameMode === 'daily') {
         // Daily challenge mode — use selected date (defaults to today)
         const dateStr = s.settings.dailyPuzzleDate || getTodayDateString();
+
+        // Check for a saved daily state for this date+variant before starting fresh.
+        // If found, restore it and re-show the result overlay if completed.
+        // See: spec-codebreaker-daily-lockout §3.2
+        const savedDaily = loadDailyState(dateStr, s.settings.dailyGameMode);
+        if (savedDaily) {
+          const completedRows = savedDaily.guesses.map((g, i) => ({
+            guess: g,
+            feedback: savedDaily.feedback[i]
+          }));
+          const restoredSettings = {
+            ...s.settings,
+            dailyGameMode: savedDaily.settings.dailyGameMode,
+            dailyPuzzleDate: savedDaily.date,
+            maxAttempts: savedDaily.settings.maxAttempts,
+            allowDuplicates: savedDaily.settings.allowDuplicates
+          };
+          const restoredState = {
+            ...s,
+            status: savedDaily.status,
+            settings: restoredSettings,
+            secretCode: savedDaily.secretCode,
+            dailyPuzzleCode: savedDaily.secretCode,
+            puzzleNumber: savedDaily.puzzleNumber,
+            completedRows,
+            activeRow: {
+              slots: [null, null, null, null],
+              selectedSlotIndex: savedDaily.status === 'in-progress' ? 0 : null
+            },
+            attemptNumber: completedRows.length + 1
+          };
+          setState(restoredState);
+          // Re-show result overlay for completed games
+          if (savedDaily.status === 'won' || savedDaily.status === 'lost') {
+            setTimeout(() => {
+              revealSecretCode(savedDaily.status === 'won' ? 'win' : 'loss');
+              showResultOverlay(restoredState);
+            }, 200);
+          }
+          break;
+        }
+        // No saved state — start a fresh daily puzzle for this date+variant.
         const parts = dateStr.split('-');
         const selectedDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
         const dailyPuzzle = DailyPuzzleSystem.getPuzzleForDate(selectedDate, s.settings.dailyGameMode);
@@ -1881,7 +1923,10 @@ function dispatch(action) {
     }
     case 'NEW_GAME': {
       window._advancedOpen = false; // Reset accordion to collapsed
-      clearGameState(); // Wipe persisted state before new game initialises
+      // Daily state lives in its own keyed entry and must not be wiped on NEW_GAME.
+      // Only clear the generic game state for non-daily modes.
+      // See: spec-codebreaker-daily-lockout §3.3
+      if (s.settings.gameMode !== 'daily') clearGameState();
       setState({
         ...s, status: 'setup',
         secretCode: null,
@@ -2056,6 +2101,13 @@ function handleLogoNav() {
     return;
   }
   if (s.status === 'in-progress') {
+    // Daily mode: navigate freely without abandon confirmation.
+    // Progress is already persisted to the daily key and will restore on Start Game.
+    // See: spec-codebreaker-daily-lockout §3.4
+    if (s.settings.gameMode === 'daily') {
+      dispatch({ type: 'NEW_GAME' });
+      return;
+    }
     if (s.completedRows.length === 0) {
       dispatch({ type: 'NEW_GAME' });
       return;
@@ -2824,6 +2876,74 @@ function toggleAdvancedSettings() {
 
 const GAME_STATE_KEY = 'codebreaker_game_state';
 
+// =============================================
+// DAILY CHALLENGE LOCKOUT & PERSISTENCE
+// Daily games use a separate, variant+date-keyed localStorage entry so they
+// persist independently of the generic game state and survive NEW_GAME.
+// See: spec-codebreaker-daily-lockout
+// =============================================
+
+// Build the localStorage key for a daily challenge.
+// Variant is derived from dailyGameMode: 'dup' or 'nodup'.
+function getDailyKey(dateStr, dailyGameMode) {
+  const variant = dailyGameMode === 'dup' ? 'dupes' : 'nodupes';
+  return `codebreaker-daily-${dateStr}-${variant}`;
+}
+
+// Save the current daily challenge state to its variant+date key.
+// Called from saveGameState when mode is daily.
+function saveDailyState(s) {
+  try {
+    if (s.settings.gameMode !== 'daily') return;
+    if (!['in-progress', 'won', 'lost'].includes(s.status)) return;
+
+    const dateStr = s.settings.dailyPuzzleDate || getTodayDateString();
+    const key = getDailyKey(dateStr, s.settings.dailyGameMode);
+
+    const payload = {
+      date: dateStr,
+      variant: s.settings.dailyGameMode,
+      secretCode: s.secretCode,
+      guesses: (s.completedRows || []).map(r => r.guess),
+      feedback: (s.completedRows || []).map(r => r.feedback),
+      status: s.status,
+      puzzleNumber: s.puzzleNumber || null,
+      settings: {
+        allowDuplicates: s.settings.allowDuplicates,
+        maxAttempts: s.settings.maxAttempts,
+        colorblindMode: s.settings.colorblindMode,
+        dailyGameMode: s.settings.dailyGameMode,
+        dailyPuzzleDate: dateStr
+      }
+    };
+
+    localStorage.setItem(key, JSON.stringify(payload));
+  } catch (_) {
+    // Silent degrade
+  }
+}
+
+// Attempt to restore a saved daily challenge for a given date and variant.
+// Returns the parsed payload if valid, or null.
+function loadDailyState(dateStr, dailyGameMode) {
+  try {
+    const key = getDailyKey(dateStr, dailyGameMode);
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+
+    const p = JSON.parse(raw);
+
+    // Validate required fields
+    if (!p || p.date !== dateStr || p.variant !== dailyGameMode) return null;
+    if (!p.secretCode || !Array.isArray(p.guesses) || !Array.isArray(p.feedback)) return null;
+    if (!['in-progress', 'won', 'lost'].includes(p.status)) return null;
+
+    return p;
+  } catch (_) {
+    return null;
+  }
+}
+
 // Derive mode string from settings (mirrors START_GAME logic)
 function getModeFromState(s) {
   return s.settings.gameMode === 'daily' ? 'daily'
@@ -2897,6 +3017,11 @@ async function saveGameState(s) {
     };
 
     localStorage.setItem(GAME_STATE_KEY, JSON.stringify(payload));
+
+    // Also write to the daily-specific key so daily state survives NEW_GAME
+    // and is keyed by date+variant independently.
+    // See: spec-codebreaker-daily-lockout §3.1
+    if (mode === 'daily') saveDailyState(s);
   } catch (_) {
     // Silent degrade — localStorage unavailable or crypto error
   }

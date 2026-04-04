@@ -1717,6 +1717,8 @@ applyColorblindMode(state.settings.colorblindMode);
 function setState(newState) {
   state = newState;
   render();
+  // Persist after every state change (async — non-blocking)
+  saveGameState(newState);
 }
 
 function dispatch(action) {
@@ -1879,6 +1881,7 @@ function dispatch(action) {
     }
     case 'NEW_GAME': {
       window._advancedOpen = false; // Reset accordion to collapsed
+      clearGameState(); // Wipe persisted state before new game initialises
       setState({
         ...s, status: 'setup',
         secretCode: null,
@@ -2812,9 +2815,203 @@ function toggleAdvancedSettings() {
 }
 
 // =============================================
+// GAME STATE PERSISTENCE
+// Spec: spec-codebreaker-persistence
+// Persists active game state to localStorage so a page refresh
+// restores the exact game in progress. Settings use a separate
+// key (codebreaker_settings) and are unaffected.
+// =============================================
+
+const GAME_STATE_KEY = 'codebreaker_game_state';
+
+// Derive mode string from settings (mirrors START_GAME logic)
+function getModeFromState(s) {
+  return s.settings.gameMode === 'daily' ? 'daily'
+       : s.settings.gameMode === 'two-player' ? 'two-player'
+       : 'single';
+}
+
+// Save current game state to localStorage.
+// Async because Two Player handoff requires SHA-256 hashing.
+// Silent-fails if localStorage is unavailable.
+async function saveGameState(s) {
+  try {
+    // Only persist in-progress, won, or lost states.
+    // 'setup', 'code-entry' phases have nothing worth restoring.
+    if (s.status === 'setup') return;
+
+    const mode = getModeFromState(s);
+    const today = getTodayDateString();
+    let secretCode = null;
+    let secretCodeHash = null;
+    let twoPlayerPhase = null;
+
+    if (mode === 'two-player') {
+      if (s.status === 'handoff') {
+        // At handoff screen: store hash only, never plaintext
+        twoPlayerPhase = 'handoff';
+        secretCode = null;
+        if (s.secretCode) {
+          const encoded = new TextEncoder().encode(s.secretCode.join(','));
+          const hashBuf = await crypto.subtle.digest('SHA-256', encoded);
+          const hashArr = Array.from(new Uint8Array(hashBuf));
+          secretCodeHash = hashArr.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+      } else if (s.status === 'in-progress' || s.status === 'won' || s.status === 'lost') {
+        // Codebreaker phase: plaintext is safe (used only for feedback calculation)
+        twoPlayerPhase = 'guessing';
+        secretCode = s.secretCode;
+        secretCodeHash = null;
+      } else {
+        // code-entry phase — don't persist
+        return;
+      }
+    } else {
+      secretCode = s.secretCode;
+    }
+
+    const payload = {
+      mode,
+      savedDate: today,
+      date: mode === 'daily' ? (s.settings.dailyPuzzleDate || today) : null,
+      settings: {
+        allowDuplicates: s.settings.allowDuplicates,
+        maxAttempts: s.settings.maxAttempts,
+        colorblindMode: s.settings.colorblindMode,
+        gameMode: s.settings.gameMode,
+        dailyGameMode: s.settings.dailyGameMode || 'nodup',
+        dailyPuzzleDate: s.settings.dailyPuzzleDate || today
+      },
+      secretCode,
+      secretCodeHash,
+      twoPlayerPhase,
+      submittedRows: s.completedRows.map(r => ({
+        guesses: r.guess,
+        feedback: r.feedback
+      })),
+      activeRowPegs: s.activeRow ? [...s.activeRow.slots] : [null,null,null,null],
+      gameComplete: s.status === 'won' || s.status === 'lost',
+      status: s.status,
+      puzzleNumber: s.puzzleNumber || null,
+      attemptNumber: s.attemptNumber || 1
+    };
+
+    localStorage.setItem(GAME_STATE_KEY, JSON.stringify(payload));
+  } catch (_) {
+    // Silent degrade — localStorage unavailable or crypto error
+  }
+}
+
+// Clear the persisted game state entry.
+function clearGameState() {
+  try {
+    localStorage.removeItem(GAME_STATE_KEY);
+  } catch (_) {}
+}
+
+// Validate that a parsed payload has the required fields.
+function isValidSavedState(p) {
+  return p
+    && typeof p.mode === 'string'
+    && typeof p.savedDate === 'string'
+    && p.settings && typeof p.settings.maxAttempts === 'number'
+    && Array.isArray(p.submittedRows)
+    && Array.isArray(p.activeRowPegs)
+    && typeof p.gameComplete === 'boolean';
+}
+
+// Attempt to restore a saved game state on page load.
+// Returns true if a game was restored, false if starting fresh.
+function restoreGameState() {
+  try {
+    const raw = localStorage.getItem(GAME_STATE_KEY);
+    if (!raw) return false;
+
+    const p = JSON.parse(raw);
+    if (!isValidSavedState(p)) { clearGameState(); return false; }
+
+    // Midnight expiry: if savedDate differs from today, discard.
+    const today = getTodayDateString();
+    if (p.savedDate !== today) { clearGameState(); return false; }
+
+    // Two Player handoff-phase restore: we cannot reconstruct the plaintext
+    // code from the hash, so restart the codemaker phase with an explanation.
+    if (p.mode === 'two-player' && p.twoPlayerPhase === 'handoff') {
+      clearGameState();
+      // Hydrate settings so game mode is correct, then show an interrupted notice
+      const restoredSettings = { ...DEFAULT_SETTINGS, ...p.settings };
+      state = { ...createInitialState(), settings: restoredSettings };
+      applyColorblindMode(state.settings.colorblindMode);
+      // Show a one-time toast after first render
+      window._showInterruptedNotice = true;
+      return false; // fall through to normal setup render
+    }
+
+    // Reconstruct completedRows in internal format
+    const completedRows = (p.submittedRows || []).map(r => ({
+      guess: r.guesses,
+      feedback: r.feedback
+    }));
+
+    const restoredSettings = { ...DEFAULT_SETTINGS, ...p.settings };
+    applyColorblindMode(restoredSettings.colorblindMode);
+
+    // Determine status to restore
+    let status = p.status || 'in-progress';
+    // Guard: only restore valid statuses
+    if (!['in-progress','won','lost','handoff'].includes(status)) status = 'in-progress';
+
+    state = {
+      status,
+      settings: restoredSettings,
+      secretCode: p.secretCode || null,
+      dailyPuzzleCode: p.mode === 'daily' ? p.secretCode : null,
+      puzzleNumber: p.puzzleNumber || null,
+      completedRows,
+      activeRow: {
+        slots: p.activeRowPegs || [null,null,null,null],
+        selectedSlotIndex: (status === 'in-progress') ? (p.activeRowPegs || []).findIndex(v => v === null) : null
+      },
+      attemptNumber: p.attemptNumber || (completedRows.length + 1)
+    };
+
+    // If game was completed, re-show the result overlay after render
+    if (p.gameComplete && (status === 'won' || status === 'lost')) {
+      window._restoreResultOverlay = state;
+    }
+
+    return true;
+  } catch (_) {
+    clearGameState();
+    return false;
+  }
+}
+
+// =============================================
 // INIT
 // =============================================
+restoreGameState();
 render();
+
+// Post-render hooks for restored states
+if (window._showInterruptedNotice) {
+  window._showInterruptedNotice = false;
+  setTimeout(() => {
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2a2a2a;color:#e8dcc8;padding:12px 20px;border-radius:8px;font-size:14px;z-index:9999;text-align:center;max-width:320px;box-shadow:0 4px 16px rgba(0,0,0,0.4);border:1px solid #c8a96e44;';
+    toast.textContent = 'Your session was interrupted. Please set the code again.';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  }, 300);
+}
+if (window._restoreResultOverlay) {
+  const s = window._restoreResultOverlay;
+  window._restoreResultOverlay = null;
+  setTimeout(() => {
+    revealSecretCode(s.status === 'won' ? 'win' : 'loss');
+    showResultOverlay(s);
+  }, 200);
+}
 </script>
 </body>
 </html>

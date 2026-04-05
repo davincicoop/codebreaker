@@ -1451,6 +1451,14 @@ button.game-title:hover { opacity: 0.7; }
   <!-- Vercel Web Analytics -->
   <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
   <script defer src="/_vercel/insights/script.js"></script>
+  <!-- PostHog Analytics — spec-codebreaker-posthog -->
+  <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]);t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+" (stub)"},o="init push capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init('phc_uCFXUQqmJh583MhAfdAmuKTG7Z4DbSR4DvJrHQzhCp7k', {
+      api_host: 'https://us.i.posthog.com',
+      autocapture: true
+    });
+  </script>
 </head>
 <body>
 <div id="app"></div>
@@ -1781,6 +1789,12 @@ function dispatch(action) {
         const parts = dateStr.split('-');
         const selectedDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
         const dailyPuzzle = DailyPuzzleSystem.getPuzzleForDate(selectedDate, s.settings.dailyGameMode);
+        // spec-codebreaker-posthog: game_started (daily, fresh only — restoring saved state does not fire)
+        posthog.capture('game_started', {
+          mode: 'daily',
+          allow_duplicates: s.settings.dailyGameMode === 'dup',
+          max_attempts: s.settings.maxAttempts
+        });
         setState({
           ...s, status: 'in-progress',
           secretCode: dailyPuzzle.code,
@@ -1792,6 +1806,12 @@ function dispatch(action) {
         });
       } else if (s.settings.gameMode === 'single') {
         // Single player
+        // spec-codebreaker-posthog: game_started (single)
+        posthog.capture('game_started', {
+          mode: 'single',
+          allow_duplicates: s.settings.allowDuplicates,
+          max_attempts: s.settings.maxAttempts
+        });
         setState({
           ...s, status: 'in-progress',
           secretCode: generateCode(s.settings.allowDuplicates),
@@ -1800,7 +1820,13 @@ function dispatch(action) {
           attemptNumber: 1
         });
       } else {
-        // Two player
+        // Two player — fires on transition to 'code-entry' (see spec-codebreaker-posthog §5)
+        // spec-codebreaker-posthog: game_started (two_player)
+        posthog.capture('game_started', {
+          mode: 'two_player',
+          allow_duplicates: s.settings.allowDuplicates,
+          max_attempts: s.settings.maxAttempts
+        });
         setState({
           ...s, status: 'code-entry',
           secretCode: null,
@@ -1873,6 +1899,14 @@ function dispatch(action) {
       if (feedback.black === 4) {
         setState({ ...s, status: 'won', completedRows: newCompleted });
         triggerWinAnimation();
+        // spec-codebreaker-posthog: game_completed (won)
+        posthog.capture('game_completed', {
+          mode: s.settings.gameMode === 'daily' ? 'daily' : s.settings.gameMode === 'single' ? 'single' : 'two_player',
+          outcome: 'won',
+          attempts: newCompleted.length,
+          max_attempts: s.settings.maxAttempts,
+          puzzle_number: s.settings.gameMode === 'daily' ? s.puzzleNumber : null
+        });
         const winEmoji = getOutcomeEmoji(newCompleted.length, 'won');
         setTimeout(() => {
           revealSecretCode('win');
@@ -1883,6 +1917,14 @@ function dispatch(action) {
       }
       if (newCompleted.length >= s.settings.maxAttempts) {
         setState({ ...s, status: 'lost', completedRows: newCompleted });
+        // spec-codebreaker-posthog: game_completed (lost)
+        posthog.capture('game_completed', {
+          mode: s.settings.gameMode === 'daily' ? 'daily' : s.settings.gameMode === 'single' ? 'single' : 'two_player',
+          outcome: 'lost',
+          attempts: newCompleted.length,
+          max_attempts: s.settings.maxAttempts,
+          puzzle_number: s.settings.gameMode === 'daily' ? s.puzzleNumber : null
+        });
         setTimeout(() => {
           revealSecretCode('loss');
           showResultOverlay({ ...s, status: 'lost', completedRows: newCompleted });
@@ -2202,8 +2244,8 @@ function generateShareText(completedRows, status, puzzleNumber, dailyGameMode, m
     return indicators.join(' ');
   }).join('\n');
 
-  // Footer
-  const footer = 'Your turn 👉 www.breakthecode.app';
+  // Footer — /try redirects to /?utm_source=share (spec-codebreaker-posthog §3.3)
+  const footer = 'Your turn 👉 www.breakthecode.app/try';
 
   return `${header}\n${outcome}\n\n${grid}\n\n${footer}`;
 }
@@ -2219,10 +2261,20 @@ async function handleShare() {
     s.settings.dailyPuzzleDate || getTodayDateString()
   );
 
+  // spec-codebreaker-posthog: share_tapped — fires on intent regardless of outcome
+  posthog.capture('share_tapped', {
+    outcome: s.status,
+    attempts: s.completedRows.length,
+    puzzle_number: s.puzzleNumber,
+    puzzle_date: s.settings.dailyPuzzleDate || getTodayDateString()
+  });
+
   // Try Web Share API first (mobile + supported desktop)
   if (navigator.share) {
     try {
       await navigator.share({ title: 'CodeBreaker', text: shareText });
+      // spec-codebreaker-posthog: share_completed (native)
+      posthog.capture('share_completed', { method: 'native' });
       return; // Success — OS share sheet handled it
     } catch (err) {
       // User cancelled or share failed — fall through to clipboard
@@ -2233,6 +2285,8 @@ async function handleShare() {
   // Fallback: clipboard copy
   try {
     await navigator.clipboard.writeText(shareText);
+    // spec-codebreaker-posthog: share_completed (clipboard)
+    posthog.capture('share_completed', { method: 'clipboard' });
     showShareToast('✅ Result copied to clipboard');
     return;
   } catch (err) {
@@ -2240,6 +2294,9 @@ async function handleShare() {
   }
 
   // Double-fallback: manual copy modal
+  // spec-codebreaker-posthog: share_completed (modal) — fired when modal is shown;
+  // actual copy action in the modal is not separately tracked
+  posthog.capture('share_completed', { method: 'modal' });
   showShareModal(shareText);
 }
 
@@ -2374,7 +2431,7 @@ function renderSetupScreen(settings) {
               min="2026-03-21"
               max="${getTodayDateString()}"
               aria-label="Select daily puzzle date"
-              onchange="updateSetting('dailyPuzzleDate', this.value)">
+              onchange="updateSetting('dailyPuzzleDate', this.value); (function(v){ const today = getTodayDateString(); const todayParts = today.split('-'); const selParts = v.split('-'); const todayMs = new Date(Number(todayParts[0]),Number(todayParts[1])-1,Number(todayParts[2])).getTime(); const selMs = new Date(Number(selParts[0]),Number(selParts[1])-1,Number(selParts[2])).getTime(); const daysBack = Math.round((todayMs - selMs)/(1000*60*60*24)); posthog.capture('date_picker_used', { puzzle_number: puzzleNumberForDateString(v), days_back: daysBack }); })(this.value)">
             <span class="puzzle-number-badge" aria-live="polite">Daily #${puzzleNumberForDateString(settings.dailyPuzzleDate || getTodayDateString())}</span>
           </div>
         </div>

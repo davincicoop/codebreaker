@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/try",
+      "destination": "/?utm_source=share",
+      "permanent": false
+    }
+  ]
+}

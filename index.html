@@ -1905,6 +1905,7 @@ function dispatch(action) {
           outcome: 'won',
           attempts: newCompleted.length,
           max_attempts: s.settings.maxAttempts,
+          allow_duplicates: s.settings.gameMode === 'daily' ? s.settings.dailyGameMode === 'dup' : s.settings.allowDuplicates,
           puzzle_number: s.settings.gameMode === 'daily' ? s.puzzleNumber : null
         });
         const winEmoji = getOutcomeEmoji(newCompleted.length, 'won');
@@ -1923,6 +1924,7 @@ function dispatch(action) {
           outcome: 'lost',
           attempts: newCompleted.length,
           max_attempts: s.settings.maxAttempts,
+          allow_duplicates: s.settings.gameMode === 'daily' ? s.settings.dailyGameMode === 'dup' : s.settings.allowDuplicates,
           puzzle_number: s.settings.gameMode === 'daily' ? s.puzzleNumber : null
         });
         setTimeout(() => {
@@ -2190,6 +2192,13 @@ function showAbandonDialog() {
 
   backdrop.querySelector('#abandonCancel').addEventListener('click', close);
   backdrop.querySelector('#abandonLeave').addEventListener('click', () => {
+    // spec-codebreaker-posthog: game_abandoned — fires when player confirms leaving mid-game
+    const s = state;
+    posthog.capture('game_abandoned', {
+      mode: s.settings.gameMode === 'daily' ? 'daily' : s.settings.gameMode === 'single' ? 'single' : 'two_player',
+      attempt_number: s.attemptNumber,
+      max_attempts: s.settings.maxAttempts
+    });
     backdrop.remove();
     document.removeEventListener('keydown', escHandler);
     dispatch({ type: 'NEW_GAME' });
